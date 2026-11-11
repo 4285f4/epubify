@@ -1,0 +1,12 @@
+# 测试样本：每次从外部复制，不入库（仓库只含网页本体）
+test/sample.txt
+
+# 测试产物
+test/dl/
+test/*.epub
+test/*.png
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
