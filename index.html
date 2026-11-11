@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>EasyPub Web — TXT 转 EPUB</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b2a41'/%3E%3Ctext x='16' y='22' font-size='13' fill='%23ffffff' text-anchor='middle' font-family='sans-serif' font-weight='700'%3EEP%3C/text%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="css/app.css"/>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">EP</span>
+    <span class="brand-text">EasyPub <em>Web</em></span>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnImport" class="btn">导入 TXT</button>
+    <button id="btnEdit" class="btn" disabled>编辑原文</button>
+    <button id="btnDownloadTxt" class="btn" disabled>下载 TXT</button>
+    <button id="btnBuild" class="btn btn-primary" disabled>生成 EPUB</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左侧：章节 ============ -->
+  <aside class="panel-left">
+    <div class="file-card" id="fileCard">
+      <div class="file-empty">尚未导入文件</div>
+    </div>
+
+    <div class="list-toolbar">
+      <input type="search" id="searchBox" class="input" placeholder="筛选章节…" disabled/>
+      <div class="list-hintline">
+        <span class="list-stats" id="listStats"></span>
+        <span class="sel-hint">双击改名 · Ctrl 点选 · Shift 连选 · Ctrl+A 全选</span>
+      </div>
+    </div>
+
+    <div class="bulk-bar" id="bulkBar" hidden>
+      <div class="bulk-head">
+        <span>已选 <b id="bulkCount">0</b> 章</span>
+        <button class="bulk-close" data-bulk="clear" title="取消选择">✕</button>
+      </div>
+      <div class="bulk-actions">
+        <button data-bulk="level-up" title="所选章节层级 -1">↑上级</button>
+        <button data-bulk="level-down" title="所选章节层级 +1">↓下级</button>
+        <button data-bulk="level-1">→1级</button>
+        <button data-bulk="level-2">→2级</button>
+        <button data-bulk="level-3">→3级</button>
+        <button data-bulk="del" class="danger">删除</button>
+        <button data-bulk="restore">恢复</button>
+      </div>
+    </div>
+
+    <div class="chapter-list" id="chapterList">
+      <div class="list-hint">导入 TXT 后在此编辑章节</div>
+    </div>
+  </aside>
+
+  <!-- ============ 右侧：设置 ============ -->
+  <section class="panel-right">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="meta">书籍信息</button>
+      <button class="tab" data-tab="split">分章规则</button>
+      <button class="tab" data-tab="layout">版式</button>
+      <button class="tab" data-tab="style">自定义样式</button>
+      <button class="tab" data-tab="cover">封面</button>
+      <button class="tab" data-tab="preview">预览</button>
+    </nav>
+
+    <div class="tab-body">
+
+      <!-- 元数据 -->
+      <div class="tab-pane active" data-pane="meta">
+        <div class="field-row">
+          <label class="field"><span>书名</span><input type="text" id="mTitle" class="input"/></label>
+          <label class="field"><span>作者</span><input type="text" id="mAuthor" class="input"/></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>语言</span>
+            <select id="mLang" class="input">
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁体中文</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+          </label>
+          <label class="field"><span>标签</span><input type="text" id="mSubject" class="input" placeholder="小说"/></label>
+        </div>
+        <label class="field"><span>简介</span><textarea id="mDesc" class="input" rows="6"></textarea></label>
+        <label class="field"><span>出版社</span><input type="text" id="mPublisher" class="input"/></label>
+        <label class="check"><input type="checkbox" id="mIncludeCover"/> 在正文前插入封面页</label>
+        <label class="check"><input type="checkbox" id="mTocPage"/> 在正文前插入目录页</label>
+        <div class="hint-box" style="margin-top:10px">
+          封面页与目录页也是「章节」，会出现在电子书目录里；<br/>
+          可在左侧列表中拖动调整位置、双击改名或删除。
+        </div>
+
+        <div class="field-block">
+          <div class="field-block-title">输出文件名</div>
+          <div class="name-preview" id="namePreview">书名_作者.epub</div>
+          <label class="check"><input type="checkbox" id="nameWithAuthor" checked/> 文件名带上作者（书名_作者.epub）</label>
+        </div>
+      </div>
+
+      <!-- 分章规则 -->
+      <div class="tab-pane" data-pane="split">
+        <label class="field"><span>预设方案</span>
+          <select id="rulePreset" class="input">
+            <option value="cn">中文网文：第X章 / 第X回</option>
+            <option value="vol">卷章两级：第X卷 + 第X章</option>
+            <option value="en">英文：Chapter 1</option>
+            <option value="num">纯数字行：1. 标题</option>
+            <option value="custom">自定义正则</option>
+          </select>
+        </label>
+
+        <div class="field">
+          <span>识别方式</span>
+          <div class="segmented" id="splitMode">
+            <button data-val="simple">可视化构建</button>
+            <button data-val="regex">直接写正则</button>
+          </div>
+        </div>
+
+        <!-- 可视化构建器 -->
+        <div id="builderWrap">
+          <div class="field">
+            <span>标题前缀</span>
+            <div class="chip-group" id="prefixChips">
+              <button class="chip" data-v="第">第</button>
+              <button class="chip" data-v="卷">卷</button>
+              <button class="chip" data-v="Chapter">Chapter</button>
+            </div>
+          </div>
+          <div class="field">
+            <span>序号写法</span>
+            <div class="chip-group" id="numChips">
+              <button class="chip" data-v="any">任意数字</button>
+              <button class="chip" data-v="arabic">阿拉伯数字</button>
+              <button class="chip" data-v="cjk">中文数字</button>
+            </div>
+          </div>
+          <div class="field">
+            <span>标题后缀（可多选）</span>
+            <div class="chip-group" id="suffixChips">
+              <button class="chip" data-v="章">章</button>
+              <button class="chip" data-v="回">回</button>
+              <button class="chip" data-v="节">节</button>
+              <button class="chip" data-v="集">集</button>
+              <button class="chip" data-v="卷">卷</button>
+              <button class="chip" data-v="部">部</button>
+              <button class="chip" data-v="篇">篇</button>
+            </div>
+          </div>
+        </div>
+
+        <label class="field" id="fullRegWrap" style="display:none"><span>正则表达式（按行匹配）</span>
+          <input type="text" id="fullRegex" class="input mono" placeholder="^\s*第[0-9一二三四五六七八九十百千]+章.*"/>
+        </label>
+
+        <div class="rule-readout">
+          <div class="rule-readout-label">实际生效的正则</div>
+          <code id="effectiveReg" class="rule-code"></code>
+        </div>
+        <div class="rule-preview" id="rulePreview">—</div>
+
+        <label class="field"><span>额外关键词（简介/序言/番外…）</span>
+          <input type="text" id="extraKeywords" class="input mono"/>
+        </label>
+        <div class="field-row">
+          <label class="check"><input type="checkbox" id="levelBySuffix" checked/> 卷/部识别为一级目录</label>
+          <label class="check"><input type="checkbox" id="filterProse" checked/> 过滤"像正文的假标题"</label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>纯卷名处理</span>
+            <select id="emptyMode" class="input">
+              <option value="page">单独成页（推荐）</option>
+              <option value="skip">忽略卷名页</option>
+            </select>
+          </label>
+        </div>
+        <div class="hint-box">
+          修改规则后先看「预计识别」，满意再点「应用」。应用会覆盖已手工改过的章节名。
+        </div>
+        <button id="btnResplit" class="btn btn-secondary" disabled>应用并重新分章</button>
+      </div>
+
+      <!-- 版式 -->
+      <div class="tab-pane" data-pane="layout">
+        <div class="field-row">
+          <label class="field"><span>字号 <b id="vFontSize">100</b>%</span>
+            <input type="range" id="rFontSize" min="80" max="200" value="100"/></label>
+          <label class="field"><span>行高 <b id="vLineHeight">150</b>%</span>
+            <input type="range" id="rLineHeight" min="100" max="250" value="150"/></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>首行缩进 <b id="vIndent">2</b> 字</span>
+            <input type="range" id="rIndent" min="0" max="4" step="0.5" value="2"/></label>
+          <label class="field"><span>段间距 <b id="vPara">0.35</b> 行</span>
+            <input type="range" id="rPara" min="0" max="1.5" step="0.05" value="0.35"/></label>
+        </div>
+        <div class="field">
+          <span>对齐方式</span>
+          <div class="segmented" id="alignMode">
+            <button data-val="justify" class="active">两端对齐</button>
+            <button data-val="left">左对齐</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>上边距 px</span><input type="number" id="nMarginTop" class="input" value="0" min="0"/></label>
+          <label class="field"><span>下边距 px</span><input type="number" id="nMarginBottom" class="input" value="0" min="0"/></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>左边距 px</span><input type="number" id="nMarginLeft" class="input" value="0" min="0"/></label>
+          <label class="field"><span>右边距 px</span><input type="number" id="nMarginRight" class="input" value="0" min="0"/></label>
+        </div>
+        <label class="check"><input type="checkbox" id="dropLeadSpace" checked/> 清除行首全角空格（由 CSS 统一缩进）</label>
+      </div>
+
+      <!-- 自定义样式 -->
+      <div class="tab-pane" data-pane="style">
+        <div class="hint-box">
+          自动样式由「版式」页参数生成。这里可追加自己的 CSS 覆盖它，
+          生成时会写进 <code>style.css</code>，预览同步生效。
+        </div>
+
+        <div class="field">
+          <span>生效方式</span>
+          <div class="segmented" id="cssMode">
+            <button data-val="append">追加覆盖（推荐）</button>
+            <button data-val="replace">完全替换</button>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <div class="field-block-title">可用的样式类名</div>
+          <table class="class-table">
+            <tr><td><code>p</code></td><td>正文段落</td></tr>
+            <tr><td><code>p.a</code></td><td>首行缩进的正文段落</td></tr>
+            <tr><td><code>h2.titlel1std</code></td><td>一级标题（卷 / 部）</td></tr>
+            <tr><td><code>h2.titlel2std</code></td><td>二级标题（章）</td></tr>
+            <tr><td><code>h3.titlel3std</code></td><td>三级标题</td></tr>
+            <tr><td><code>.tocpage</code></td><td>目录页容器</td></tr>
+            <tr><td><code>.tocpage .lv1 / .lv2</code></td><td>目录中不同层级的条目</td></tr>
+            <tr><td><code>div.centeredimage img</code></td><td>插图</td></tr>
+          </table>
+        </div>
+
+        <div class="css-toolbar">
+          <button id="btnLoadCss" class="btn btn-sm">载入当前生成的 CSS</button>
+          <button id="btnUploadCss" class="btn btn-sm">上传 .css 文件</button>
+          <button id="btnClearCss" class="btn btn-sm">清空</button>
+          <input type="file" id="cssFile" accept=".css,text/css" hidden/>
+        </div>
+
+        <textarea id="customCss" class="input mono css-editor" rows="14"
+          placeholder="/* 例如：&#10;   p { line-height: 1.8; }&#10;   h2.titlel2std { font-size: 1.5em; border-bottom: 1px solid #ccc; }&#10;   .tocpage .lv2 { padding-left: 1em; }&#10;*/"></textarea>
+
+        <div class="css-status" id="cssStatus">未添加自定义样式</div>
+      </div>
+
+      <!-- 封面 -->
+      <div class="tab-pane" data-pane="cover">
+        <div class="segmented" id="coverMode">
+          <button data-val="none" class="active">无封面</button>
+          <button data-val="gen">书名单色封面</button>
+          <button data-val="upload">上传图片</button>
+        </div>
+        <div class="cover-preview" id="coverPreview">
+          <div class="cover-ph">未设置封面</div>
+        </div>
+        <div id="genCoverOpts" style="display:none">
+          <div class="field-row">
+            <label class="field"><span>背景色</span><input type="color" id="coverBg" class="input color" value="#1b2a41"/></label>
+            <label class="field"><span>文字色</span><input type="color" id="coverFg" class="input color" value="#f2f2f2"/></label>
+          </div>
+        </div>
+        <div id="uploadCoverOpts" style="display:none">
+          <label class="field"><span>选择图片</span><input type="file" id="coverFile" accept="image/*" class="input"/></label>
+        </div>
+      </div>
+
+      <!-- 预览 -->
+      <div class="tab-pane" data-pane="preview">
+        <div class="preview-toolbar">
+          <select id="previewChapter" class="input"></select>
+          <div class="segmented segmented-sm" id="previewDevice">
+            <button data-val="phone" class="active">手机</button>
+            <button data-val="tablet">平板</button>
+            <button data-val="full">铺满</button>
+          </div>
+        </div>
+        <div class="preview-stage" id="previewStage">
+          <iframe id="previewFrame" class="preview-frame" sandbox="allow-same-origin"></iframe>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ 原文编辑器（覆盖右侧设置区，左侧列表仍可点击） ============ -->
+    <div class="editor-mask" id="editorMask" hidden>
+      <div class="editor-head">
+        <div class="ed-title">
+          <span class="ed-badge">编辑原文</span>
+          <span class="ed-pos" id="edPos">—</span>
+        </div>
+        <div class="ed-actions">
+          <button id="edPrev" class="btn btn-sm">← 上一章</button>
+          <button id="edNext" class="btn btn-sm">下一章 →</button>
+          <span class="ed-stat" id="edStat">未修改</span>
+          <button id="edRevert" class="btn btn-sm">还原本章</button>
+          <button id="edDone" class="btn btn-sm btn-primary">完成编辑</button>
+        </div>
+      </div>
+      <textarea id="editArea" class="edit-area" spellcheck="false" wrap="soft"></textarea>
+      <div class="ed-hint">
+        点击左侧章节切换编辑对象 · 切换时自动保存 · Ctrl+S 手动保存 · Esc 退出
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="statusbar">
+  <span id="statusText">就绪</span>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+
+<div class="dropzone" id="dropzone">
+  <div class="dropzone-inner">
+    <div class="dz-icon">TXT</div>
+    <h2>拖入 TXT 文件</h2>
+    <p>自动识别 UTF-8 / GBK 编码 · 全程本地处理，文件不会上传</p>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".txt,text/plain" hidden/>
+
+<script src="js/zip.js"></script>
+<script src="js/text.js"></script>
+<script src="js/epub.js"></script>
+<script src="js/cover.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
