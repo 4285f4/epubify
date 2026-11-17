@@ -43,33 +43,33 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   console.log('导入 766 万字…');
   await evaluate(`(async () => {
     const blob = await (await fetch('test/sample.txt')).blob();
-    __easypub.importFile(new File([blob], '甲书.txt', {type:'text/plain'}));
+    __epubify.importFile(new File([blob], '甲书.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
-      const iv = setInterval(() => { if (__easypub.state.chapters.length) { clearInterval(iv); res(); } }, 40);
+      const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);
       setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 30000);
     });
     await new Promise(r => setTimeout(r, 400));
   })()`);
 
   const res = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const out = { chars: s.text.length, chapters: s.chapters.length };
 
     // 1) 纯 rebuildText 耗时（重排全文并重算 1076 个偏移）
     let t = performance.now();
-    __easypub.rebuildText();
+    __epubify.rebuildText();
     out.rebuildText = Math.round(performance.now() - t);
 
     // 2) 一次完整拖动：移动第 500 章到第 501 位
     t = performance.now();
-    __easypub.moveChapter(500, 501);
+    __epubify.moveChapter(500, 501);
     out.moveChapter = Math.round(performance.now() - t);
     await new Promise(r => setTimeout(r, 50));
 
     // 3) 连续 10 次移动（模拟连续拖放）
     t = performance.now();
     for (let i = 0; i < 10; i++) {
-      __easypub.moveChapter(300 + i, 305 + i);
+      __epubify.moveChapter(300 + i, 305 + i);
     }
     out.tenMoves = Math.round(performance.now() - t);
     await new Promise(r => setTimeout(r, 50));

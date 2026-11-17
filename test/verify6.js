@@ -85,19 +85,19 @@ function ok(name, cond, detail) {
   console.log('\n【1】导入小样本');
   await evaluate(`(async () => {
     const blob = await (await fetch('test/bookB.txt')).blob();
-    __easypub.importFile(new File([blob], '乙书.txt', {type:'text/plain'}));
+    __epubify.importFile(new File([blob], '乙书.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
-      const iv = setInterval(() => { if (__easypub.state.chapters.length) { clearInterval(iv); res(); } }, 40);
+      const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);
       setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 20000);
     });
     await new Promise(r => setTimeout(r, 300));
   })()`);
   const first = await evaluate(`({
-    title: __easypub.state.chapters[0].title,
-    level: __easypub.state.chapters[0].level,
-    fixed: __easypub.state.chapters[0].fixedTitle === true,
-    chars: __easypub.state.chapters[0].chars,
-    total: __easypub.state.chapters.length
+    title: __epubify.state.chapters[0].title,
+    level: __epubify.state.chapters[0].level,
+    fixed: __epubify.state.chapters[0].fixedTitle === true,
+    chars: __epubify.state.chapters[0].chars,
+    total: __epubify.state.chapters.length
   })`);
   ok('首章标题为「内容简介」', first.title === '内容简介', first);
   ok('首章标记为固定标题', first.fixed === true);
@@ -133,7 +133,7 @@ function ok(name, cond, detail) {
     inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
     await new Promise(r => setTimeout(r, 200));
     return {
-      title: __easypub.state.chapters[3].title,
+      title: __epubify.state.chapters[3].title,
       shown: (document.querySelector('.chapter-row[data-idx="3"] .title') || {}).textContent,
       inputGone: !document.querySelector('.chapter-row input')
     };
@@ -166,45 +166,45 @@ function ok(name, cond, detail) {
     return { hasInput: true };
   })()`);
   await sleep(200);
-  const byBtnTitle = await evaluate(`__easypub.state.chapters[5].title`);
+  const byBtnTitle = await evaluate(`__epubify.state.chapters[5].title`);
   ok('按钮触发改名', byBtn.hasInput === true && byBtnTitle === '按钮改的名', byBtnTitle);
 
   console.log('\n【5】编辑「内容简介」的正文不覆盖标题');
   const seqTest = await evaluate(`(async () => {
-    __easypub.toggleEdit();
-    __easypub.loadChapterToEditor(0);
-    const before = __easypub.state.chapters[0].title;
+    __epubify.toggleEdit();
+    __epubify.loadChapterToEditor(0);
+    const before = __epubify.state.chapters[0].title;
     const area = document.getElementById('editArea');
     area.value = '全新的扉页第一行内容';
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     await new Promise(r => setTimeout(r, 150));
-    const after = __easypub.state.chapters[0].title;
-    __easypub.toggleEdit();
-    return { before, after, content: __easypub.state.text.slice(0, 20) };
+    const after = __epubify.state.chapters[0].title;
+    __epubify.toggleEdit();
+    return { before, after, content: __epubify.state.text.slice(0, 20) };
   })()`);
   ok('「内容简介」标题未被正文覆盖', seqTest.after === '内容简介', seqTest);
 
   console.log('\n【6】普通章节在编辑器改首行仍会同步标题');
   const normalTest = await evaluate(`(async () => {
-    __easypub.toggleEdit();
-    __easypub.loadChapterToEditor(7);
+    __epubify.toggleEdit();
+    __epubify.loadChapterToEditor(7);
     const area = document.getElementById('editArea');
     const lines = area.value.split('\\n');
     lines[0] = '第七章 我改过的标题';
     area.value = lines.join('\\n');
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     await new Promise(r => setTimeout(r, 150));
-    const t = __easypub.state.chapters[7].title;
-    __easypub.toggleEdit();
+    const t = __epubify.state.chapters[7].title;
+    __epubify.toggleEdit();
     return { title: t };
   })()`);
   ok('普通章节标题随首行同步', normalTest.title === '第七章 我改过的标题', normalTest);
 
   console.log('\n【7】「内容简介」保持固定标记');
   const refix = await evaluate(`(() => {
-    const c = __easypub.state.chapters[0];
+    const c = __epubify.state.chapters[0];
     return { title: c.title, fixed: c.fixedTitle };
   })()`);
   ok('「内容简介」保持固定标记', refix.fixed === true, refix);
@@ -216,7 +216,7 @@ function ok(name, cond, detail) {
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dlDir });
 
   const buildRes = await evaluate(`(async () => {
-    __easypub.build();
+    __epubify.build();
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const t = document.getElementById('statusText').textContent;
