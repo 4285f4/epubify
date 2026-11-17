@@ -68,33 +68,33 @@ function ok(name, cond, detail) {
   await evaluate(`
     window.__load = async (url, name) => {
       const blob = await (await fetch(url)).blob();
-      __easypub.importFile(new File([blob], name, {type:'text/plain'}));
+      __epubify.importFile(new File([blob], name, {type:'text/plain'}));
       await new Promise((res, rej) => {
-        const iv = setInterval(() => { if (__easypub.state.chapters.length) { clearInterval(iv); res(); } }, 40);
+        const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);
         setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 30000);
       });
       await new Promise(r => setTimeout(r, 250));
-      return __easypub.state.chapters.length;
+      return __epubify.state.chapters.length;
     };
   `);
 
   console.log('\n【1】退出编辑 → 换书 → 再进编辑');
   const s1 = await evaluate(`(async () => {
     await __load('test/sample.txt', '甲书.txt');
-    __easypub.toggleEdit();
-    __easypub.loadChapterToEditor(3);
+    __epubify.toggleEdit();
+    __epubify.loadChapterToEditor(3);
     const inA = document.getElementById('editArea').value.indexOf('楚光') >= 0;
-    __easypub.toggleEdit();                       // 退出
-    const idle = { editMode: __easypub.state.editMode, idx: __easypub.state.editingIndex };
+    __epubify.toggleEdit();                       // 退出
+    const idle = { editMode: __epubify.state.editMode, idx: __epubify.state.editingIndex };
 
     await __load('test/bookB.txt', '乙书.txt');
     const afterLoad = {
-      idx: __easypub.state.editingIndex,
+      idx: __epubify.state.editingIndex,
       areaLen: document.getElementById('editArea').value.length,
-      chapterCount: __easypub.state.chapters.length
+      chapterCount: __epubify.state.chapters.length
     };
 
-    __easypub.toggleEdit();                       // 再进编辑
+    __epubify.toggleEdit();                       // 再进编辑
     await new Promise(r => setTimeout(r, 250));
     const v = document.getElementById('editArea').value;
     return {
@@ -112,7 +112,7 @@ function ok(name, cond, detail) {
 
   console.log('\n【2】乙书原文未被甲书污染');
   const s2 = await evaluate(`(() => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const bad = [];
     s.chapters.forEach((c, i) => {
       const t = s.text.slice(c.start, c.end);
@@ -127,27 +127,27 @@ function ok(name, cond, detail) {
   console.log('\n【3】编辑模式下直接导入新书');
   const s3 = await evaluate(`(async () => {
     // 先在乙书里编辑一章（保持编辑模式开启）
-    __easypub.loadChapterToEditor(2);
+    __epubify.loadChapterToEditor(2);
     const area = document.getElementById('editArea');
     area.value = area.value + '\\n【乙书修改】';
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
-    const dirtyB = __easypub.state.textDirty;
+    __epubify.commitEditor();
+    const dirtyB = __epubify.state.textDirty;
 
     // 不退出编辑，直接导入甲书
     await __load('test/sample.txt', '甲书.txt');
     const after = {
-      editMode: __easypub.state.editMode,
+      editMode: __epubify.state.editMode,
       maskHidden: document.getElementById('editorMask').hidden,
       btnText: document.getElementById('btnEdit').textContent,
-      idx: __easypub.state.editingIndex,
+      idx: __epubify.state.editingIndex,
       areaLen: document.getElementById('editArea').value.length,
-      dirty: __easypub.state.textDirty,
-      chapters: __easypub.state.chapters.length
+      dirty: __epubify.state.textDirty,
+      chapters: __epubify.state.chapters.length
     };
 
     // 再进编辑应是甲书内容
-    __easypub.toggleEdit();
+    __epubify.toggleEdit();
     await new Promise(r => setTimeout(r, 250));
     const v = document.getElementById('editArea').value;
     return { dirtyB, after, hasA: v.indexOf('这游戏') >= 0 || v.indexOf('楚光') >= 0, vHead: v.slice(0, 20) };
@@ -161,18 +161,18 @@ function ok(name, cond, detail) {
 
   console.log('\n【4】退出编辑时最后修改必须保存');
   const s4 = await evaluate(`(async () => {
-    __easypub.loadChapterToEditor(6);
-    const c = __easypub.state.chapters[6];
+    __epubify.loadChapterToEditor(6);
+    const c = __epubify.state.chapters[6];
     const area = document.getElementById('editArea');
     area.value = area.value + '\\n【退出前最后一句】';
     area.dispatchEvent(new Event('input'));
 
-    __easypub.toggleEdit();   // 直接退出（无 blur）
+    __epubify.toggleEdit();   // 直接退出（无 blur）
     await new Promise(r => setTimeout(r, 120));
     return {
-      saved: __easypub.state.text.slice(c.start, c.end).indexOf('【退出前最后一句】') >= 0,
-      editMode: __easypub.state.editMode,
-      dirty: __easypub.state.textDirty
+      saved: __epubify.state.text.slice(c.start, c.end).indexOf('【退出前最后一句】') >= 0,
+      editMode: __epubify.state.editMode,
+      dirty: __epubify.state.textDirty
     };
   })()`);
   ok('退出时的修改已落盘', s4.saved === true);
@@ -180,12 +180,12 @@ function ok(name, cond, detail) {
 
   console.log('\n【5】同书重新分章保留「已编辑」状态');
   const s5 = await evaluate(`(async () => {
-    __easypub.resplit(false);
+    __epubify.resplit(false);
     await new Promise(r => setTimeout(r, 400));
     return {
-      dirty: __easypub.state.textDirty,
+      dirty: __epubify.state.textDirty,
       txtDisabled: document.getElementById('btnDownloadTxt').disabled,
-      keepEdit: __easypub.state.text.indexOf('【退出前最后一句】') >= 0
+      keepEdit: __epubify.state.text.indexOf('【退出前最后一句】') >= 0
     };
   })()`);
   ok('重新分章后内容保留', s5.keepEdit === true);
@@ -195,10 +195,10 @@ function ok(name, cond, detail) {
   const s6 = await evaluate(`(async () => {
     await __load('test/sample.txt', '甲书.txt');
     return {
-      dirty: __easypub.state.textDirty,
+      dirty: __epubify.state.textDirty,
       txtDisabled: document.getElementById('btnDownloadTxt').disabled,
-      idx: __easypub.state.editingIndex,
-      clean: __easypub.state.text.indexOf('【退出前最后一句】') < 0
+      idx: __epubify.state.editingIndex,
+      clean: __epubify.state.text.indexOf('【退出前最后一句】') < 0
     };
   })()`);
   ok('重新导入后 dirty 归零', s6.dirty === false && s6.txtDisabled === true, s6);
@@ -207,7 +207,7 @@ function ok(name, cond, detail) {
   console.log('\n【7】换书时书籍信息必须整体重置');
   const s7 = await evaluate(`(async () => {
     const load = async (text, name) => {
-      __easypub.importFile(new File([text], name, {type: 'text/plain'}));
+      __epubify.importFile(new File([text], name, {type: 'text/plain'}));
       await new Promise((res, rej) => {
         const iv = setInterval(() => { if (!document.getElementById('btnBuild').disabled) { clearInterval(iv); res(); } }, 40);
         setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 15000);
@@ -224,11 +224,11 @@ function ok(name, cond, detail) {
     pub.value = '某某出版社'; pub.dispatchEvent(new Event('input'));
 
     const afterA = {
-      title: __easypub.state.meta.title,
-      author: __easypub.state.meta.author,
-      desc: __easypub.state.meta.description,
-      subject: __easypub.state.meta.subject,
-      publisher: __easypub.state.meta.publisher
+      title: __epubify.state.meta.title,
+      author: __epubify.state.meta.author,
+      desc: __epubify.state.meta.description,
+      subject: __epubify.state.meta.subject,
+      publisher: __epubify.state.meta.publisher
     };
 
     // 乙书：没有「内容简介：」标记，也没有标签/出版社
@@ -237,11 +237,11 @@ function ok(name, cond, detail) {
     return {
       afterA,
       afterB: {
-        title: __easypub.state.meta.title,
-        author: __easypub.state.meta.author,
-        desc: __easypub.state.meta.description,
-        subject: __easypub.state.meta.subject,
-        publisher: __easypub.state.meta.publisher
+        title: __epubify.state.meta.title,
+        author: __epubify.state.meta.author,
+        desc: __epubify.state.meta.description,
+        subject: __epubify.state.meta.subject,
+        publisher: __epubify.state.meta.publisher
       },
       uiDesc: document.getElementById('mDesc').value,
       uiSubject: document.getElementById('mSubject').value,

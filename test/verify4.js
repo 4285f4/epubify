@@ -67,21 +67,21 @@ function ok(name, cond, detail) {
   console.log('\n【准备】导入');
   await evaluate(`(async () => {
     const blob = await (await fetch('test/sample.txt')).blob();
-    __easypub.importFile(new File([blob], '这游戏也太真实了_晨星LL.txt', {type:'text/plain'}));
+    __epubify.importFile(new File([blob], '这游戏也太真实了_晨星LL.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
-      const iv = setInterval(() => { if (__easypub.state.chapters.length) { clearInterval(iv); res(); } }, 50);
+      const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 50);
       setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 30000);
     });
     await new Promise(r => setTimeout(r, 300));
-    __easypub.toggleEdit();
+    __epubify.toggleEdit();
   })()`);
   console.log('  完成');
 
   console.log('\n【1】修改 → 切换章节提交 → 还原（模拟真实 blur→click 时序）');
   const t1 = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const IDX = 5;
-    __easypub.loadChapterToEditor(IDX);
+    __epubify.loadChapterToEditor(IDX);
     const c = s.chapters[IDX];
     const orig = s.text.slice(c.start, c.end);
     const nextStartBefore = s.chapters[IDX + 1].start;
@@ -91,7 +91,7 @@ function ok(name, cond, detail) {
     area.dispatchEvent(new Event('input'));
 
     // 切换章节 → 触发提交
-    __easypub.loadChapterToEditor(IDX + 1);
+    __epubify.loadChapterToEditor(IDX + 1);
     await new Promise(r => setTimeout(r, 100));
     const afterCommit = {
       dirty: s.textDirty,
@@ -100,7 +100,7 @@ function ok(name, cond, detail) {
     };
 
     // 回到该章，模拟真实点击：textarea 先 blur，再点按钮
-    __easypub.loadChapterToEditor(IDX);
+    __epubify.loadChapterToEditor(IDX);
     await new Promise(r => setTimeout(r, 100));
     area.dispatchEvent(new Event('blur'));
     document.getElementById('edRevert').click();
@@ -128,9 +128,9 @@ function ok(name, cond, detail) {
 
   console.log('\n【2】未提交直接还原');
   const t2 = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const IDX = 8;
-    __easypub.loadChapterToEditor(IDX);
+    __epubify.loadChapterToEditor(IDX);
     const c = s.chapters[IDX];
     const orig = s.text.slice(c.start, c.end);
     const area = document.getElementById('editArea');
@@ -150,21 +150,21 @@ function ok(name, cond, detail) {
 
   console.log('\n【3】手工改回原样应自动取消 dirty');
   const t3 = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const IDX = 12;
-    __easypub.loadChapterToEditor(IDX);
+    __epubify.loadChapterToEditor(IDX);
     const c = s.chapters[IDX];
     const orig = s.text.slice(c.start, c.end);
     const area = document.getElementById('editArea');
 
     area.value = orig + '\\n【TEMP】';
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     const dirty1 = s.textDirty;
 
     area.value = orig;
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     await new Promise(r => setTimeout(r, 100));
     return { dirty1, dirty2: s.textDirty, identical: s.text.slice(c.start, c.end) === orig };
   })()`);
@@ -173,23 +173,23 @@ function ok(name, cond, detail) {
 
   console.log('\n【4】多章修改后逐章还原');
   const t4 = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const idxs = [20, 21, 22];
     const origs = {};
     idxs.forEach(i => { origs[i] = s.text.slice(s.chapters[i].start, s.chapters[i].end); });
 
     for (const i of idxs) {
-      __easypub.loadChapterToEditor(i);
+      __epubify.loadChapterToEditor(i);
       const area = document.getElementById('editArea');
       area.value = area.value + '\\n【M' + i + '】';
       area.dispatchEvent(new Event('input'));
-      __easypub.commitEditor();
+      __epubify.commitEditor();
     }
     const allDirty = { count: Object.keys(s.originals).length, dirty: s.textDirty };
 
     const reverted = [];
     for (const i of idxs) {
-      __easypub.loadChapterToEditor(i);
+      __epubify.loadChapterToEditor(i);
       document.getElementById('edRevert').click();
       await new Promise(r => setTimeout(r, 60));
       reverted.push(s.text.slice(s.chapters[i].start, s.chapters[i].end) === origs[i]);
@@ -202,22 +202,22 @@ function ok(name, cond, detail) {
 
   console.log('\n【5】还原后再修改仍可正常工作');
   const t5 = await evaluate(`(async () => {
-    const s = __easypub.state;
+    const s = __epubify.state;
     const IDX = 30;
-    __easypub.loadChapterToEditor(IDX);
+    __epubify.loadChapterToEditor(IDX);
     const c = s.chapters[IDX];
     const orig = s.text.slice(c.start, c.end);
     const area = document.getElementById('editArea');
 
     area.value = orig + '\\n【A】';
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     document.getElementById('edRevert').click();
     await new Promise(r => setTimeout(r, 80));
 
     area.value = s.text.slice(c.start, c.end) + '\\n【B】';
     area.dispatchEvent(new Event('input'));
-    __easypub.commitEditor();
+    __epubify.commitEditor();
     await new Promise(r => setTimeout(r, 80));
     const hasB = s.text.slice(c.start, c.end).indexOf('【B】') >= 0;
     document.getElementById('edRevert').click();
@@ -234,8 +234,8 @@ function ok(name, cond, detail) {
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dlDir });
 
   const buildRes = await evaluate(`(async () => {
-    __easypub.toggleEdit();
-    __easypub.build();
+    __epubify.toggleEdit();
+    __epubify.build();
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const t = document.getElementById('statusText').textContent;

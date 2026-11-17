@@ -67,19 +67,19 @@ function ok(name, cond, detail) {
   console.log('\n【1】导入样本');
   await evaluate(`(async () => {
     const blob = await (await fetch('test/bookB.txt')).blob();
-    __easypub.importFile(new File([blob], '乙书.txt', {type:'text/plain'}));
+    __epubify.importFile(new File([blob], '乙书.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
-      const iv = setInterval(() => { if (__easypub.state.chapters.length) { clearInterval(iv); res(); } }, 40);
+      const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);
       setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 20000);
     });
     await new Promise(r => setTimeout(r, 300));
   })()`);
   const s1 = await evaluate(`({
-    total: __easypub.state.chapters.length,
-    first: __easypub.state.chapters[0].title,
-    firstType: __easypub.state.chapters[0].type,
-    hasCover: __easypub.hasFrontChapter('cover'),
-    hasToc: __easypub.hasFrontChapter('toc')
+    total: __epubify.state.chapters.length,
+    first: __epubify.state.chapters[0].title,
+    firstType: __epubify.state.chapters[0].type,
+    hasCover: __epubify.hasFrontChapter('cover'),
+    hasToc: __epubify.hasFrontChapter('toc')
   })`);
   ok('首章为「内容简介」', s1.first === '内容简介' && s1.firstType === 'text', s1);
   ok('默认无封面页/目录页', s1.hasCover === false && s1.hasToc === false);
@@ -91,12 +91,12 @@ function ok(name, cond, detail) {
     cb.checked = true;
     cb.dispatchEvent(new Event('change'));
     await new Promise(r => setTimeout(r, 350));
-    const ch = __easypub.state.chapters;
+    const ch = __epubify.state.chapters;
     return {
       total: ch.length,
       first: ch[0].title, firstType: ch[0].type,
       second: ch[1].title,
-      coverMode: __easypub.state.cover.mode,
+      coverMode: __epubify.state.cover.mode,
       rows: document.querySelectorAll('.chapter-row').length
     };
   })()`);
@@ -110,7 +110,7 @@ function ok(name, cond, detail) {
     cb.checked = true;
     cb.dispatchEvent(new Event('change'));
     await new Promise(r => setTimeout(r, 300));
-    const ch = __easypub.state.chapters;
+    const ch = __epubify.state.chapters;
     return {
       total: ch.length,
       types: ch.slice(0, 4).map(c => c.type),
@@ -121,9 +121,9 @@ function ok(name, cond, detail) {
 
   console.log('\n【4】拖动调整顺序（目录到最前）');
   const s4 = await evaluate(`(async () => {
-    __easypub.moveChapter(1, 0);
+    __epubify.moveChapter(1, 0);
     await new Promise(r => setTimeout(r, 200));
-    const ch = __easypub.state.chapters;
+    const ch = __epubify.state.chapters;
     return {
       types: ch.slice(0, 3).map(c => c.type),
       titles: ch.slice(0, 3).map(c => c.title),
@@ -145,14 +145,14 @@ function ok(name, cond, detail) {
     await new Promise(r => setTimeout(r, 220));
     return {
       hasInput: true,
-      title: __easypub.state.chapters[0].title,
+      title: __epubify.state.chapters[0].title,
       inputClosed: !document.querySelector('.chapter-row input')
     };
   })()`);
   ok('前置页可双击改名', s5.hasInput === true && s5.title === '目次' && s5.inputClosed === true, s5);
 
   console.log('\n【6】真实鼠标拖动');
-  const before = await evaluate(`__easypub.state.chapters.map(c => c.type + ':' + c.title)`);
+  const before = await evaluate(`__epubify.state.chapters.map(c => c.type + ':' + c.title)`);
   const s6 = await evaluate(`(() => {
     const rows = document.querySelectorAll('.chapter-row');
     const a = rows[0].getBoundingClientRect();
@@ -174,8 +174,8 @@ function ok(name, cond, detail) {
   await sleep(400);
 
   const s6b = await evaluate(`({
-    order: __easypub.state.chapters.map(c => c.type + ':' + c.title),
-    total: __easypub.state.chapters.length
+    order: __epubify.state.chapters.map(c => c.type + ':' + c.title),
+    total: __epubify.state.chapters.length
   })`);
   ok('真实鼠标拖动改变了顺序', s6b.order.join('|') !== before.join('|'), {
     前: before.slice(0, 3), 后: s6b.order.slice(0, 3)
@@ -189,7 +189,7 @@ function ok(name, cond, detail) {
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dlDir });
 
   const buildRes = await evaluate(`(async () => {
-    __easypub.build();
+    __epubify.build();
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const t = document.getElementById('statusText').textContent;

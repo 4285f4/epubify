@@ -1,5 +1,5 @@
 /* ============================================================
- * app.js — EasyPub Web 主逻辑
+ * app.js — epubify 主逻辑
  * ============================================================ */
 (function () {
   'use strict';
@@ -1655,7 +1655,7 @@
   else init();
 
   /* 调试/自动化钩子（不影响正常使用） */
-  window.__easypub = {
+  window.__epubify = {
     state: state,
     importFile: importFile,
     resplit: resplit,

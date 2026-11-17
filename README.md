@@ -1,4 +1,4 @@
-# EasyPub Web
+# epubify
 
 把 TXT 小说转成 EPUB 3 的纯前端工具。双击 `index.html` 就能用，不装软件、不上传文件、不需要服务器。
 
