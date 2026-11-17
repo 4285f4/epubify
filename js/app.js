@@ -84,11 +84,29 @@
       state.bookSeq++;                 // 换书：旧的编辑上下文立即失效
 
       var meta = extractMeta(res.text, file.name);
-      state.meta.title = meta.title || state.meta.title;
-      state.meta.author = meta.author || state.meta.author;
-      state.meta.description = meta.desc || state.meta.description;
+      // 换书：书籍信息整体重置。不能用 || 兜底，否则新书没提取到的字段会残留上一本的内容
+      state.meta.title = meta.title || '';
+      state.meta.author = meta.author || '';
+      state.meta.description = meta.desc || '';
+      state.meta.subject = '';
+      state.meta.publisher = '';
+
+      // 上传的封面图属于上一本书，一并清掉；生成式封面会按新书名自动重绘
+      if (state.cover.uploaded) {
+        state.cover.uploaded = null;
+        if (state.cover.mode === 'upload') {
+          state.cover.mode = 'none';
+          var genOpts = $('genCoverOpts'), upOpts = $('uploadCoverOpts');
+          if (genOpts) genOpts.style.display = 'none';
+          if (upOpts) upOpts.style.display = 'none';
+          Array.prototype.forEach.call(document.querySelectorAll('#coverMode button'), function (b) {
+            b.classList.toggle('active', b.dataset.val === 'none');
+          });
+        }
+      }
 
       syncMetaToUI();
+      updateCoverPreview();
       updateNamePreview();
       setProgress(0.3);
       return nextTick().then(function () { return resplit(true); });
