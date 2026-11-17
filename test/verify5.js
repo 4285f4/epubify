@@ -204,6 +204,65 @@ function ok(name, cond, detail) {
   ok('重新导入后 dirty 归零', s6.dirty === false && s6.txtDisabled === true, s6);
   ok('重新导入后回到原始内容', s6.clean === true);
 
+  console.log('\n【7】换书时书籍信息必须整体重置');
+  const s7 = await evaluate(`(async () => {
+    const load = async (text, name) => {
+      __easypub.importFile(new File([text], name, {type: 'text/plain'}));
+      await new Promise((res, rej) => {
+        const iv = setInterval(() => { if (!document.getElementById('btnBuild').disabled) { clearInterval(iv); res(); } }, 40);
+        setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 15000);
+      });
+      await new Promise(r => setTimeout(r, 200));
+    };
+
+    // 甲书：书名、作者、简介俱全
+    await load('《甲书》 作者：张三\\n\\n内容简介：\\n　　这是甲的简介内容。\\n\\n\\n第1章 开始\\n　　正文甲', '甲书.txt');
+    // 模拟用户手工补充标签和出版社
+    const sub = document.getElementById('mSubject');
+    sub.value = '玄幻'; sub.dispatchEvent(new Event('input'));
+    const pub = document.getElementById('mPublisher');
+    pub.value = '某某出版社'; pub.dispatchEvent(new Event('input'));
+
+    const afterA = {
+      title: __easypub.state.meta.title,
+      author: __easypub.state.meta.author,
+      desc: __easypub.state.meta.description,
+      subject: __easypub.state.meta.subject,
+      publisher: __easypub.state.meta.publisher
+    };
+
+    // 乙书：没有「内容简介：」标记，也没有标签/出版社
+    await load('《乙书》 作者：李四\\n\\n\\n第1章 开始\\n　　正文乙', '乙书.txt');
+
+    return {
+      afterA,
+      afterB: {
+        title: __easypub.state.meta.title,
+        author: __easypub.state.meta.author,
+        desc: __easypub.state.meta.description,
+        subject: __easypub.state.meta.subject,
+        publisher: __easypub.state.meta.publisher
+      },
+      uiDesc: document.getElementById('mDesc').value,
+      uiSubject: document.getElementById('mSubject').value,
+      uiPublisher: document.getElementById('mPublisher').value,
+      uiTitle: document.getElementById('mTitle').value,
+      namePreview: document.getElementById('namePreview').textContent
+    };
+  })()`);
+  ok('甲书信息提取正确', s7.afterA.title === '甲书' && s7.afterA.author === '张三' &&
+    s7.afterA.desc.indexOf('甲的简介内容') >= 0, s7.afterA);
+  ok('乙书简介不残留', s7.afterB.desc === '' && s7.uiDesc === '', {
+    state: s7.afterB.desc, ui: s7.uiDesc
+  });
+  ok('乙书标签/出版社不残留', s7.afterB.subject === '' && s7.afterB.publisher === '' &&
+    s7.uiSubject === '' && s7.uiPublisher === '', {
+    subject: s7.uiSubject, publisher: s7.uiPublisher
+  });
+  ok('乙书书名作者正确更新', s7.afterB.title === '乙书' && s7.afterB.author === '李四' &&
+    s7.uiTitle === '乙书', s7.afterB);
+  ok('文件名预览同步', s7.namePreview === '乙书_李四.epub', s7.namePreview);
+
   console.log('\n=== 汇总 ===');
   const pass = results.filter(r => r.pass).length;
   console.log(`${pass}/${results.length} 通过`);
