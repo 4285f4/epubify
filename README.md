@@ -171,6 +171,39 @@ EPUB 结构校验（mimetype 位置、manifest/spine 一致性、XML 合法性�
 python test/validate.py test/out.epub
 ```
 
+## 部署到 Cloudflare
+
+纯静态站点，可以放在 Cloudflare Workers（静态资源）或 Pages 上。
+
+先说计费：Cloudflare 官方明确规定 **「Requests to static assets are free and unlimited」**，即静态资源请求不计费、不限量。那个「10 万次/天」的限制只针对调用 Worker 脚本的请求。本项目没有任何服务端逻辑——转换全程在访问者的浏览器里跑——所以服务器侧 CPU 消耗为零，请求量再大也不会产生费用或触发限流。
+
+### Workers
+
+```bash
+npm run deploy
+```
+
+等价于：
+
+```bash
+node scripts/build-assets.mjs   # 生成 dist/
+npx wrangler deploy             # 首次会弹浏览器授权
+```
+
+`wrangler.jsonc` 里刻意没有 `main` 字段——不挂任何 Worker 脚本。一旦挂了，请求就会进入 Worker 执行路径，免费版超过 10 万次/天会直接返回 429，等于给自己设了个上限。
+
+**为什么必须走 `dist/`：** Wrangler 在 `assets.directory` 指向项目根目录时不会读取 `.assetsignore`（实测 147 个文件被全部扫描，`.git` 和 `test/` 都在内）。`.git` 一旦被公开，等于把完整提交历史挂到网上。`scripts/build-assets.mjs` 只复制 `index.html`、`css/`、`js/`、`LICENSE` 四项，实测部署扫描只剩 10 个文件。
+
+### Pages
+
+在 Cloudflare Dashboard 里连这个仓库即可，构建命令留空、输出目录填 `.`。
+
+Pages 会自动排除 `.git`、`node_modules`、`.DS_Store`，不需要 `dist/` 这一步。代价是 Pages 只做维护，新特性都在 Workers 上。
+
+### 部署前须知
+
+部署不改变工具性质。所有解析、分章、打包仍在访问者浏览器里完成，服务器只负责发那 43 KB 静态文件，看不到任何人的 TXT。如果你只是自己用，双击本地 `index.html` 反而更快，省掉一次网络往返。
+
 ## 许可
 
 MIT

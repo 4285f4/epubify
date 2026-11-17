@@ -6,6 +6,11 @@ test/dl/
 test/*.epub
 test/*.png
 
+# 部署产物与 wrangler 缓存（由 npm run build 生成）
+dist/
+.wrangler/
+node_modules/
+
 # 系统文件
 .DS_Store
 Thumbs.db
