@@ -1707,6 +1707,44 @@
     });
   }
 
+  /* ---------------- 关于（版本信息） ---------------- */
+  function bindAbout() {
+    var mask = $('aboutMask');
+
+    function fill() {
+      // window.__BUILD_INFO 由构建脚本写入 dist/js/version.js；
+      // 直接双击 index.html 时不存在，退回「开发版」
+      var info = window.__BUILD_INFO || {};
+      $('aboutVersion').textContent = info.version ? 'v' + info.version : '开发版（未构建）';
+      $('aboutBuild').textContent = info.buildTime || '—';
+      $('aboutCommit').textContent = info.commit || '—';
+      if (info.repo) {
+        var a = $('aboutRepo');
+        a.textContent = info.repo.replace(/^https?:\/\//, '').replace(/\.git$/, '');
+        a.href = info.repo;
+      }
+    }
+
+    function open() {
+      fill();
+      mask.hidden = false;
+      $('aboutClose').focus();
+    }
+
+    function close() {
+      mask.hidden = true;
+    }
+
+    $('btnAbout').addEventListener('click', open);
+    $('aboutClose').addEventListener('click', close);
+    mask.addEventListener('click', function (e) {
+      if (e.target === mask) close();          // 点遮罩关闭
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !mask.hidden) close();
+    });
+  }
+
   /* ---------------- 初始化 ---------------- */
   function init() {
     listEl = $('chapterList');
@@ -1722,6 +1760,7 @@
     bindStyle();
     bindCover();
     bindEditor();
+    bindAbout();
 
     $('btnImport').addEventListener('click', function () { $('fileInput').click(); });
     $('fileInput').addEventListener('change', function () {

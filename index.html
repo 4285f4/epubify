@@ -19,8 +19,38 @@
     <button id="btnEdit" class="btn" disabled>编辑原文</button>
     <button id="btnDownloadTxt" class="btn" disabled>下载 TXT</button>
     <button id="btnBuild" class="btn btn-primary" disabled>生成 EPUB</button>
+    <button id="btnAbout" class="btn btn-icon" title="关于 epubify">?</button>
   </div>
 </header>
+
+<div class="about-mask" id="aboutMask" hidden>
+  <div class="about-card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="about-head">
+      <span class="logo logo-lg">ep</span>
+      <div>
+        <div class="about-title" id="aboutTitle">epubify</div>
+        <div class="about-sub">把 TXT 转成 EPUB 的纯前端工具</div>
+      </div>
+    </div>
+
+    <dl class="about-info">
+      <dt>版本</dt><dd id="aboutVersion">—</dd>
+      <dt>构建</dt><dd id="aboutBuild">—</dd>
+      <dt>提交</dt><dd id="aboutCommit">—</dd>
+      <dt>仓库</dt><dd><a id="aboutRepo" href="https://github.com/4285f4/epubify" target="_blank" rel="noopener">github.com/4285f4/epubify</a></dd>
+      <dt>许可</dt><dd>MIT</dd>
+    </dl>
+
+    <p class="about-note">
+      源自 2015 年的桌面软件 EasyPub。转换全程在浏览器本地完成，
+      TXT 不会上传到任何服务器。
+    </p>
+
+    <div class="about-actions">
+      <button class="btn btn-primary" id="aboutClose">关闭</button>
+    </div>
+  </div>
+</div>
 
 <main class="layout">
 

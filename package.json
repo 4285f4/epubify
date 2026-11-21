@@ -3,6 +3,10 @@
   "version": "1.0.3",
   "private": true,
   "description": "把 TXT 小说转成 EPUB 3 的纯前端工具",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/4285f4/epubify"
+  },
   "scripts": {
     "build": "node scripts/build-assets.mjs",
     "deploy": "node scripts/build-assets.mjs && npx wrangler@latest deploy",
