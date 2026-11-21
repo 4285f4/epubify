@@ -34,7 +34,10 @@
       <input type="search" id="searchBox" class="input" placeholder="筛选章节…" disabled/>
       <div class="list-hintline">
         <span class="list-stats" id="listStats"></span>
-        <span class="sel-hint">双击改名 · Ctrl 点选 · Shift 连选 · Ctrl+A 全选</span>
+        <span class="list-tools">
+          <button id="btnCollapseAll" class="link-btn" title="折叠所有含下级的条目">折叠</button>
+          <button id="btnExpandAll" class="link-btn" title="展开全部层级">展开</button>
+        </span>
       </div>
     </div>
 
@@ -54,7 +57,8 @@
       </div>
     </div>
 
-    <div class="chapter-list" id="chapterList">
+    <div class="chapter-list" id="chapterList"
+         title="双击改名 · Ctrl 点选 · Shift 连选 · Ctrl+A 全选 · 按住拖动排序">
       <div class="list-hint">导入 TXT 后在此编辑章节</div>
     </div>
   </aside>

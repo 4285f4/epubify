@@ -192,8 +192,11 @@
     var needCoverImg = hasCoverImg && chapters.some(function (c) { return c.type === 'cover'; });
     var coverExt = '', coverMime = '';
     if (needCoverImg) {
-      coverExt = /png/i.test(o.cover.mime) ? 'png' : 'jpg';
-      coverMime = /png/i.test(o.cover.mime) ? 'image/png' : 'image/jpeg';
+      // 白名单判定：EPUB 3 核心媒体类型只保证 JPEG / PNG。
+      // 上传端已把 WebP 等格式转码为 JPEG，这里再兜一层，避免声明与字节不符。
+      var isPng = /^image\/png$/i.test(o.cover.mime);
+      coverExt = isPng ? 'png' : 'jpg';
+      coverMime = isPng ? 'image/png' : 'image/jpeg';
       tasks.push(zip.add('OEBPS/images/cover.' + coverExt, o.cover.bytes));
       manifest.push('<item id="cover-image" href="images/cover.' + coverExt + '" media-type="' + coverMime + '" properties="cover-image"/>');
     }

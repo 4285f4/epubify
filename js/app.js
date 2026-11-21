@@ -31,6 +31,8 @@
     meta: { title: '', author: '', language: 'zh-CN', subject: '', description: '', publisher: '', tocPage: false },
     cover: { mode: 'none', bg: '#1b2a41', fg: '#f2f2f2', uploaded: null, mime: 'image/jpeg' },
     previewIdx: 0,
+    collapsed: {},             // 章节 id -> true，折叠状态（隐藏其下级）
+    childCounts: [],           // 与 chapters 同长，每行的下级数量
     editMode: false,
     editingIndex: -1,
     originals: {},             // idx -> 该章导入时的原始内容（仅记录被改过的章，用于还原）
@@ -165,6 +167,7 @@
       state.chapters = fronts.concat(texts);
       clearSelection();
       state.previewIdx = 0;
+      state.collapsed = {};        // 换书后折叠状态不再适用
       state.originals = {};
       // 换书：编辑痕迹全部作废；同书重新分章：内容没变，保留「已编辑」状态以便导出 TXT
       state.pendingDirty = isNewBook ? false : wasDirty;
@@ -375,15 +378,78 @@
   /* ---------------- 虚拟列表 ---------------- */
   var listEl, innerEl, filteredCache = null;
 
+  /** 计算每行的下级数量（卷下面挂着多少章） */
+  function computeChildCounts() {
+    var ch = state.chapters;
+    var n = ch.length;
+    var counts = new Array(n);
+    for (var i = 0; i < n; i++) {
+      var lv = ch[i].level;
+      var c = 0;
+      for (var j = i + 1; j < n; j++) {
+        if (ch[j].level <= lv) break;
+        c++;
+      }
+      counts[i] = c;
+    }
+    state.childCounts = counts;
+  }
+
+  /**
+   * 可见行 = 全部章节 - 搜索不匹配 - 被折叠父节点隐藏的下级
+   * 搜索时忽略折叠，避免搜不到内容
+   */
   function getFiltered() {
     var q = ($('searchBox').value || '').trim().toLowerCase();
-    if (!q) return state.chapters.map(function (c, i) { return { c: c, i: i }; });
-    return state.chapters
-      .map(function (c, i) { return { c: c, i: i }; })
-      .filter(function (o) { return o.c.title.toLowerCase().indexOf(q) >= 0; });
+    var hasQuery = !!q;
+    var out = [];
+    var hideBelow = Infinity;      // 大于该层级的行被隐藏
+
+    for (var i = 0; i < state.chapters.length; i++) {
+      var c = state.chapters[i];
+
+      if (c.level > hideBelow) continue;
+
+      if (hasQuery && c.title.toLowerCase().indexOf(q) < 0) continue;
+
+      out.push({ c: c, i: i });
+
+      var collapsible = !hasQuery && state.collapsed[c.id] && state.childCounts[i] > 0;
+      hideBelow = collapsible ? c.level : Infinity;
+    }
+    return out;
+  }
+
+  function toggleCollapse(idx) {
+    var c = state.chapters[idx];
+    if (!c || !state.childCounts[idx]) return;
+    if (state.collapsed[c.id]) delete state.collapsed[c.id];
+    else state.collapsed[c.id] = true;
+    renderList();
+  }
+
+  function collapseAll() {
+    state.collapsed = {};
+    var n = 0;
+    for (var i = 0; i < state.chapters.length; i++) {
+      if (state.childCounts[i] > 0) {
+        state.collapsed[state.chapters[i].id] = true;
+        n++;
+      }
+    }
+    renderList();
+    setStatus(n ? '已折叠 ' + n + ' 个含下级的条目' : '没有可折叠的层级');
+  }
+
+  function expandAll() {
+    var n = Object.keys(state.collapsed).length;
+    state.collapsed = {};
+    renderList();
+    setStatus(n ? '已展开全部' : '当前没有折叠的条目');
   }
 
   function renderList() {
+    computeChildCounts();
     filteredCache = getFiltered();
     var rows = filteredCache;
     innerEl.style.height = (rows.length * ROW_H) + 'px';
@@ -440,6 +506,21 @@
     row.dataset.idx = idx;
     row.dataset.visual = visualIdx;
 
+    var toggle = document.createElement('span');
+    toggle.className = 'toggle';
+    var kids = state.childCounts[idx] || 0;
+    if (kids > 0) {
+      var isCollapsed = !!state.collapsed[ch.id];
+      toggle.textContent = isCollapsed ? '▸' : '▾';
+      toggle.classList.add('has-kids');
+      if (isCollapsed) toggle.classList.add('collapsed');
+      toggle.title = isCollapsed ? '展开 ' + kids + ' 个下级' : '折叠 ' + kids + ' 个下级';
+      toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleCollapse(idx);
+      });
+    }
+
     var i1 = document.createElement('span');
     i1.className = 'idx';
     i1.textContent = idx + 1;
@@ -466,6 +547,7 @@
     acts.appendChild(mkBtn(ch.deleted ? '↺' : '×', ch.deleted ? '恢复' : '删除（Shift 点彻底删除）',
       function (e) { e.stopPropagation(); toggleDelete([idx], e.shiftKey); }, !ch.deleted ? 'del' : ''));
 
+    row.appendChild(toggle);
     row.appendChild(i1); row.appendChild(t); row.appendChild(ch2); row.appendChild(acts);
 
     row.addEventListener('mousedown', function (e) { startRowDrag(e, idx, row); });
@@ -1456,6 +1538,60 @@
     updateCssStatus();
   }
 
+  /**
+   * 封面图规范化：EPUB 3 核心媒体类型只保证 JPEG / PNG，
+   * WebP、GIF、BMP、SVG 等格式直接写进包里阅读器会解不开。
+   * 因此非 JPEG/PNG 一律用 canvas 转码为 JPEG（透明区域铺白底），
+   * 超过 1600px 的图等比缩小，避免封面把 EPUB 撑大。
+   */
+  function normalizeCoverImage(img, file) {
+    return new Promise(function (resolve, reject) {
+      var MAX = 1600;
+      var w = img.naturalWidth || 600;
+      var h = img.naturalHeight || 800;
+      var scale = Math.min(1, MAX / Math.max(w, h));
+      var tw = Math.max(1, Math.round(w * scale));
+      var th = Math.max(1, Math.round(h * scale));
+
+      var type = (file.type || '').toLowerCase();
+      var isStandard = type === 'image/jpeg' || type === 'image/png';
+
+      if (isStandard && scale === 1) {
+        file.arrayBuffer().then(function (ab) {
+          resolve({
+            bytes: new Uint8Array(ab),
+            mime: type,
+            w: w, h: h,
+            converted: false,
+            originalType: type
+          });
+        }).catch(reject);
+        return;
+      }
+
+      var canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';          // 透明区域铺白，否则 JPEG 会变黑底
+      ctx.fillRect(0, 0, tw, th);
+      ctx.drawImage(img, 0, 0, tw, th);
+
+      canvas.toBlob(function (blob) {
+        if (!blob) { reject(new Error('封面转码失败')); return; }
+        blob.arrayBuffer().then(function (ab) {
+          resolve({
+            bytes: new Uint8Array(ab),
+            mime: 'image/jpeg',
+            w: tw, h: th,
+            converted: true,
+            originalType: type || '未知'
+          });
+        }).catch(reject);
+      }, 'image/jpeg', 0.92);
+    });
+  }
+
   function bindCover() {
     setSegmented('coverMode', state.cover.mode, function (v) {
       state.cover.mode = v;
@@ -1470,17 +1606,33 @@
     $('coverFile').addEventListener('change', function () {
       var f = this.files && this.files[0];
       if (!f) return;
+      var self = this;
       var img = new Image();
       var url = URL.createObjectURL(f);
       img.onload = function () {
-        state.cover.uploaded = {
-          bytes: null, mime: f.type || 'image/jpeg',
-          w: img.naturalWidth, h: img.naturalHeight, url: url
-        };
-        f.arrayBuffer().then(function (ab) {
-          state.cover.uploaded.bytes = new Uint8Array(ab);
+        normalizeCoverImage(img, f).then(function (res) {
+          state.cover.uploaded = {
+            bytes: res.bytes,
+            mime: res.mime,
+            w: res.w,
+            h: res.h,
+            url: url
+          };
           updateCoverPreview();
+          if (res.converted) {
+            var from = (res.originalType.split('/')[1] || '未知').toUpperCase();
+            setStatus('封面已从 ' + from + ' 转为 JPEG（EPUB 仅保证支持 JPEG/PNG）');
+          } else {
+            setStatus('封面已载入：' + res.w + ' × ' + res.h);
+          }
+        }).catch(function (e) {
+          setStatus('封面处理失败：' + e.message);
         });
+        self.value = '';
+      };
+      img.onerror = function () {
+        setStatus('无法读取该图片，请换一个文件');
+        self.value = '';
       };
       img.src = url;
     });
@@ -1564,6 +1716,8 @@
     $('btnBuild').addEventListener('click', build);
 
     $('searchBox').addEventListener('input', function () { renderList(); });
+    $('btnCollapseAll').addEventListener('click', collapseAll);
+    $('btnExpandAll').addEventListener('click', expandAll);
     listEl.addEventListener('scroll', function () {
       if (!listEl._raf) {
         listEl._raf = requestAnimationFrame(function () {
