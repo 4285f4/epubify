@@ -138,9 +138,11 @@
       if (!book.blocks.length) throw new Error('没有提取到文字内容');
 
       var text = EasyEpubRead.toText(book.blocks);
+      // OPF 里没有作者时，用「书名_作者.epub」的文件名兜底
+      var fromName = extractMeta('', file.name);
       loadBook(text, file.name, {
-        title: book.title || file.name.replace(/\.epub$/i, ''),
-        author: book.author || '',
+        title: book.title || fromName.title || file.name.replace(/\.epub$/i, ''),
+        author: book.author || fromName.author || '',
         description: ''
       }, 'utf-8');
 
