@@ -66,50 +66,122 @@
   function clearSelection() { state.selection = {}; state.anchor = -1; }
 
   /* ---------------- 导入 ---------------- */
+  /** 装载一本书：设置正文与元数据，并清空上一本的残留状态 */
+  function loadBook(text, fileName, meta, encoding) {
+    // 统一换成 LF：textarea 的 value 会把 CRLF 规范化为 LF，
+    // 不统一的话编辑往返会被误判成「内容被改过」，进而改写正文、覆盖章节标题
+    state.lineEnding = text.indexOf('\r') >= 0 ? 'crlf' : 'lf';
+    state.text = state.lineEnding === 'crlf' ? text.replace(/\r\n?/g, '\n') : text;
+    state.encoding = encoding || 'utf-8';
+    state.fileName = fileName;
+    state.bookSeq++;                 // 换书：旧的编辑上下文立即失效
+
+    // 换书：书籍信息整体重置。不能用 || 兜底，否则新书没提取到的字段会残留上一本的内容
+    state.meta.title = meta.title || '';
+    state.meta.author = meta.author || '';
+    state.meta.description = meta.description || '';
+    state.meta.subject = '';
+    state.meta.publisher = '';
+
+    // 上传的封面图属于上一本书，一并清掉；生成式封面会按新书名自动重绘
+    if (state.cover.uploaded) {
+      state.cover.uploaded = null;
+      if (state.cover.mode === 'upload') {
+        state.cover.mode = 'none';
+        var genOpts = $('genCoverOpts'), upOpts = $('uploadCoverOpts');
+        if (genOpts) genOpts.style.display = 'none';
+        if (upOpts) upOpts.style.display = 'none';
+        Array.prototype.forEach.call(document.querySelectorAll('#coverMode button'), function (b) {
+          b.classList.toggle('active', b.dataset.val === 'none');
+        });
+      }
+    }
+
+    syncMetaToUI();
+    updateCoverPreview();
+    updateNamePreview();
+  }
+
+  /** 把图片字节设为封面（复用与手动上传相同的规范化流程） */
+  function applyCoverBytes(bytes, mime) {
+    return new Promise(function (resolve) {
+      var blob = new Blob([bytes], { type: mime });
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function () {
+        normalizeCoverImage(img, new File([blob], 'cover', { type: mime }))
+          .then(function (res) {
+            var btn = document.querySelector('#coverMode button[data-val="upload"]');
+            if (btn) btn.click();          // 切到「上传图片」模式，展开选项区
+            state.cover.uploaded = {
+              bytes: res.bytes, mime: res.mime, w: res.w, h: res.h, url: url
+            };
+            updateCoverPreview();
+            resolve(true);
+          })
+          .catch(function () { resolve(false); });
+      };
+      img.onerror = function () { resolve(false); };
+      img.src = url;
+    });
+  }
+
+  /** EPUB → 纯文本 → 走与 TXT 完全相同的后续流程 */
+  async function importEPUB(file) {
+    setStatus('解析 EPUB…');
+    setProgress(0.05);
+    try {
+      var ab = await file.arrayBuffer();
+      var book = await EasyEpubRead.read(ab, function (p) {
+        setProgress(0.05 + p * 0.45);
+      });
+      if (!book.blocks.length) throw new Error('没有提取到文字内容');
+
+      var text = EasyEpubRead.toText(book.blocks);
+      loadBook(text, file.name, {
+        title: book.title || file.name.replace(/\.epub$/i, ''),
+        author: book.author || '',
+        description: ''
+      }, 'utf-8');
+
+      if (book.cover) await applyCoverBytes(book.cover.bytes, book.cover.mime);
+
+      setProgress(0.75);
+      await nextTick();
+
+      // 直接用提取出的层级构造章节，不重新跑正则识别
+      var texts = buildChaptersFromBlocks(book.blocks, text);
+      applyChapters(texts, {});
+      setProgress(null);
+
+      var volN = texts.filter(function (t) { return t.level === 1; }).length;
+      setStatus('已从 EPUB 提取 ' + (volN ? volN + ' 卷 ' : '') +
+        (texts.length - volN) + ' 章 · ' + book.blocks.length + ' 段 · ' +
+        fmtChars(text.length) + ' 字' +
+        (book.stats.empty ? '（跳过 ' + book.stats.empty + ' 个空页）' : ''));
+    } catch (e) {
+      console.error(e);
+      setStatus('EPUB 解析失败：' + e.message);
+      setProgress(null);
+    }
+  }
+
   function importFile(file) {
     if (!file) return;
     var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'epub') { importEPUB(file); return; }
+
     if (ext !== 'txt' && !/text/.test(file.type)) {
       if (!confirm('这不是 .txt 文件，仍要尝试导入吗？')) return;
     }
     setStatus('读取中…');
     setProgress(0.05);
     file.arrayBuffer().then(function (ab) {
-      var hadEdits = state.textDirty;      // 换书前是否有未导出的修改
       var res = EasyText.decodeBuffer(ab);
-      // 统一换成 LF：textarea 的 value 会把 CRLF 规范化为 LF，
-      // 不统一的话编辑往返会被误判成「内容被改过」，进而改写正文、覆盖章节标题
-      state.lineEnding = res.text.indexOf('\r') >= 0 ? 'crlf' : 'lf';
-      state.text = state.lineEnding === 'crlf' ? res.text.replace(/\r\n?/g, '\n') : res.text;
-      state.encoding = res.encoding;
-      state.fileName = file.name;
-      state.bookSeq++;                 // 换书：旧的编辑上下文立即失效
-
       var meta = extractMeta(res.text, file.name);
-      // 换书：书籍信息整体重置。不能用 || 兜底，否则新书没提取到的字段会残留上一本的内容
-      state.meta.title = meta.title || '';
-      state.meta.author = meta.author || '';
-      state.meta.description = meta.desc || '';
-      state.meta.subject = '';
-      state.meta.publisher = '';
-
-      // 上传的封面图属于上一本书，一并清掉；生成式封面会按新书名自动重绘
-      if (state.cover.uploaded) {
-        state.cover.uploaded = null;
-        if (state.cover.mode === 'upload') {
-          state.cover.mode = 'none';
-          var genOpts = $('genCoverOpts'), upOpts = $('uploadCoverOpts');
-          if (genOpts) genOpts.style.display = 'none';
-          if (upOpts) upOpts.style.display = 'none';
-          Array.prototype.forEach.call(document.querySelectorAll('#coverMode button'), function (b) {
-            b.classList.toggle('active', b.dataset.val === 'none');
-          });
-        }
-      }
-
-      syncMetaToUI();
-      updateCoverPreview();
-      updateNamePreview();
+      loadBook(res.text, file.name, {
+        title: meta.title, author: meta.author, description: meta.desc
+      }, res.encoding);
       setProgress(0.3);
       return nextTick().then(function () { return resplit(true); });
     }).catch(function (e) {
@@ -142,9 +214,95 @@
   }
 
   /* ---------------- 分章 ---------------- */
+  /** 装好章节列表后的统一收尾：插入前置页、重置编辑上下文、刷新界面 */
+  function applyChapters(texts, opts) {
+    opts = opts || {};
+    // 封面页、目录页也是章节；保留它们的存在状态
+    var wantCover = hasFrontChapter('cover');
+    var wantToc = hasFrontChapter('toc');
+    var fronts = [];
+    if (wantCover) fronts.push(makeFrontChapter('cover'));
+    if (wantToc) fronts.push(makeFrontChapter('toc'));
+    state.chapters = fronts.concat(texts);
+
+    clearSelection();
+    state.previewIdx = 0;
+    state.collapsed = {};
+    state.originals = {};
+    // 换书：编辑痕迹全部作废；同书重新分章：内容没变，保留「已编辑」状态以便导出 TXT
+    state.pendingDirty = opts.keepDirty ? state.textDirty : false;
+    refreshDirtyUi();
+
+    // 彻底重置编辑上下文：索引、编辑器内容、编辑模式
+    state.editingIndex = -1;
+    state.editBookSeq = -1;
+    var ea = $('editArea');
+    if (ea) ea.value = '';
+    var ep = $('edPos');
+    if (ep) ep.textContent = '—';
+    if (state.editMode) {
+      state.editMode = false;
+      setEditModeUI();
+    }
+
+    renderFileCard();
+    renderList();
+    fillPreviewSelect();
+    refreshPreview();
+
+    $('btnBuild').disabled = false;
+    $('searchBox').disabled = false;
+    $('btnResplit').disabled = false;
+    $('btnEdit').disabled = false;
+  }
+
+  /**
+   * 用 EPUB 提取出的标题层级直接构造章节，不走正则识别。
+   * 提取阶段已经知道哪些是卷（h1）、哪些是章（h2），
+   * 比事后用分章规则去猜更准确（例如「番外卷」这类无序号标题）。
+   */
+  function buildChaptersFromBlocks(blocks, text) {
+    var out = [];
+    var pos = 0;
+    var cur = null;
+
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      var start = pos;
+      var end = pos + b.text.length;
+
+      if (b.level > 0) {
+        cur = {
+          id: newChapterId(), type: 'text',
+          title: b.text, level: Math.min(b.level, 3),
+          start: start, end: end,
+          chars: 0, deleted: null, fixedTitle: false
+        };
+        out.push(cur);
+      } else if (cur) {
+        cur.end = end;                 // 正文归入当前章节
+      } else {
+        // 第一个标题之前的正文，单独成「内容简介」
+        cur = {
+          id: newChapterId(), type: 'text',
+          title: '内容简介', level: 1,
+          start: start, end: end,
+          chars: 0, deleted: null, fixedTitle: true
+        };
+        out.push(cur);
+      }
+      pos = end + 2;                   // blocks 之间以 '\n\n' 连接
+    }
+
+    out.forEach(function (c) {
+      c.chars = text.slice(c.start, c.end).trim().length;
+    });
+    return out;
+  }
+
   function resplit(isNewBook) {
     if (!state.text) return;
-    var wasDirty = state.textDirty;      // 上一本书（或重新分章前）是否有未导出修改
+    var wasDirty = state.textDirty;
     setStatus('分章中…');
     setProgress(0.45);
     return nextTick().then(function () {
@@ -158,44 +316,11 @@
           chars: c.chars, deleted: null, fixedTitle: !!c.fixedTitle
         };
       });
-      // 封面页、目录页也是章节；重新分章时保留它们的存在状态
-      var wantCover = hasFrontChapter('cover');
-      var wantToc = hasFrontChapter('toc');
-      var fronts = [];
-      if (wantCover) fronts.push(makeFrontChapter('cover'));
-      if (wantToc) fronts.push(makeFrontChapter('toc'));
-      state.chapters = fronts.concat(texts);
-      clearSelection();
-      state.previewIdx = 0;
-      state.collapsed = {};        // 换书后折叠状态不再适用
-      state.originals = {};
-      // 换书：编辑痕迹全部作废；同书重新分章：内容没变，保留「已编辑」状态以便导出 TXT
-      state.pendingDirty = isNewBook ? false : wasDirty;
-      refreshDirtyUi();
-
-      // 换书后彻底重置编辑上下文：索引、编辑器内容、编辑模式
-      state.editingIndex = -1;
-      state.editBookSeq = -1;
-      var ea = $('editArea');
-      if (ea) ea.value = '';
-      var ep = $('edPos');
-      if (ep) ep.textContent = '—';
-      if (state.editMode) {
-        state.editMode = false;
-        setEditModeUI();
-      }
+      applyChapters(texts, { keepDirty: !isNewBook && wasDirty });
       setProgress(0.7);
-      renderFileCard();
-      renderList();
-      fillPreviewSelect();
-      refreshPreview();
-      setProgress(null);
       setStatus('分章完成，共 ' + state.chapters.length + ' 章' +
         (isNewBook && wasDirty ? ' · 上一本书的未导出修改已丢弃' : ''));
-      $('btnBuild').disabled = false;
-      $('searchBox').disabled = false;
-      $('btnResplit').disabled = false;
-      $('btnEdit').disabled = false;
+      setProgress(null);
     });
   }
 
