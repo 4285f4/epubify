@@ -58,6 +58,23 @@
   }
 
   /**
+   * 取元素的纯文本
+   * <br> 会被当作空格：如 <h3><span>第17章</span><br/>计划</h3>
+   * 直接取 textContent 会粘成「第17章计划」
+   */
+  function textOf(el) {
+    var brs = el.getElementsByTagName('br');
+    if (!brs.length) return clean(el.textContent);
+    var clone = el.cloneNode(true);
+    var list = clone.getElementsByTagName('br');
+    for (var i = list.length - 1; i >= 0; i--) {
+      var br = list[i];
+      if (br.parentNode) br.parentNode.replaceChild(document.createTextNode(' '), br);
+    }
+    return clean(clone.textContent);
+  }
+
+  /**
    * 从单个 XHTML 提取文本块
    * 注意 h2 里可能嵌套 div/p（精排版式），只取最外层的块级元素
    */
@@ -81,7 +98,7 @@
       // 隐藏元素（如 <h1 style="display:none">）不取
       if (el.getAttribute('style') && /display\s*:\s*none/i.test(el.getAttribute('style'))) continue;
 
-      var text = clean(el.textContent);
+      var text = textOf(el);
       if (!text) {
         // 精排常见：<h1 title="第一卷 《黄雀》"></h1>，文字在属性里
         var attr = el.getAttribute('title');
@@ -90,19 +107,63 @@
       if (!text && /^H[1-4]$/.test(el.tagName) && docTitle) text = docTitle;
       if (!text) continue;
 
-      var lv = 0;
-      if (el.tagName === 'H1') lv = 1;
-      else if (el.tagName === 'H2') lv = 2;
-      else if (el.tagName === 'H3' || el.tagName === 'H4') lv = 3;
+      var isHeading = /^H[1-4]$/.test(el.tagName);
 
       // 同名标题连续出现时去重（部分书 h1 与内部 div 都会命中）
       // 仅对标题生效：正文里连续出现相同的短句（如两个「……」）是正常内容，不能删
       var last = blocks[blocks.length - 1];
-      if (lv > 0 && last && last.level === lv && last.text === text) continue;
+      if (isHeading && last && last.tag && last.tag === el.tagName && last.text === text) continue;
 
-      blocks.push({ level: lv, text: text });
+      blocks.push({
+        level: isHeading ? 1 : 0,       // 先占位，稍后按实际用到的标签归一化
+        tag: isHeading ? el.tagName : '',
+        text: text
+      });
     }
     return blocks;
+  }
+
+  /**
+   * 从标题文字判断层级。
+   * 不能只看标签：有的书 h1 是书名页、h3 才是章节，按标签分配会把
+   * 几百章全部挂到书名页下面。
+   */
+  function levelFromTitle(text) {
+    var t = String(text || '').trim();
+    if (!t) return 0;
+    // 明确的分卷标题：第 X 卷 / 部 / 篇
+    if (/第\s*[一二三四五六七八九十百千零〇0-9]+\s*[卷部篇]/.test(t)) return 1;
+    // 短标题以「卷」结尾，如「番外卷」
+    if (t.length <= 8 && /卷$/.test(t)) return 1;
+    // 章 / 回 / 节
+    if (/第\s*[一二三四五六七八九十百千零〇0-9]+\s*[章回节]/.test(t)) return 2;
+    // 常见独立篇目
+    if (/^(序|序言|序章|引子|楔子|前言|后记|尾声|尾聲|终章|番外|附录|致谢)/.test(t)) return 2;
+    return 0;                     // 无法判断，交给默认值
+  }
+
+  /**
+   * 层级归一化：以标题内容为主，标签只作兜底。
+   * 若判为「卷」的条目占比过半，说明规则误判，全部退回章节级。
+   */
+  function normalizeLevels(blocks) {
+    var vols = 0;
+    var total = 0;
+
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (!b.tag) continue;
+      var lv = levelFromTitle(b.text);
+      b.level = lv || 2;          // 判断不出的一律当普通章节
+      total++;
+      if (b.level === 1) vols++;
+    }
+
+    if (total && vols > total * 0.5) {
+      for (var j = 0; j < blocks.length; j++) {
+        if (blocks[j].tag) blocks[j].level = 2;
+      }
+    }
   }
 
   function mimeOf(path) {
@@ -224,14 +285,21 @@
       if (!bs.length) { stats.empty++; continue; }
 
       for (var bi = 0; bi < bs.length; bi++) {
-        if (bs[bi].level === 1) stats.volumes++;
-        else if (bs[bi].level === 2) stats.chapters++;
         blocks.push(bs[bi]);
       }
 
       if (si % 25 === 0) progress(si / spine.length);
       // 让出主线程，避免大书解析时页面卡死
       if (si % 10 === 9) await new Promise(function (r) { setTimeout(r, 0); });
+    }
+
+    // 全书提取完毕后再归一化层级（需要统计全局用到哪些标题标签）
+    normalizeLevels(blocks);
+    stats.volumes = 0;
+    stats.chapters = 0;
+    for (var bi2 = 0; bi2 < blocks.length; bi2++) {
+      if (blocks[bi2].level === 1) stats.volumes++;
+      else if (blocks[bi2].level === 2) stats.chapters++;
     }
 
     progress(1);
