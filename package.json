@@ -1,6 +1,6 @@
 {
   "name": "epubify",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "把 TXT 小说转成 EPUB 3 的纯前端工具",
   "scripts": {
