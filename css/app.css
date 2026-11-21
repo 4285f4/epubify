@@ -213,9 +213,9 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
   flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chapter-row.lv1 .title { font-weight: 700; }
-.chapter-row.lv2 .title { padding-left: 8px; }
-.chapter-row.lv3 .title { padding-left: 22px; color: #4b5563; }
-.chapter-row.lv4 .title { padding-left: 36px; color: var(--text-dim); }
+.chapter-row.lv2 .title { padding-left: 16px; }
+.chapter-row.lv3 .title { padding-left: 30px; color: #4b5563; }
+.chapter-row.lv4 .title { padding-left: 42px; color: var(--text-dim); }
 .chapter-row .chars {
   flex: 0 0 66px; text-align: right;
   color: #b3bfd0; font-size: 10.5px;

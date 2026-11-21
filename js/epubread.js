@@ -74,11 +74,17 @@
     return clean(clone.textContent);
   }
 
+  /** 图片 alt 里可当标题用的文本（排除装饰图的通用描述） */
+  var BAD_ALT = /^(logo|image|img|picture|photo|cover|art|插图|图片|封面|扉页|图\s*\d*|img\s*\d*)$/i;
+
   /**
    * 从单个 XHTML 提取文本块
+   * @param {string} htmlText
+   * @param {{allowImgTitle?:boolean}} opts 纯图页是否允许用 img 的 alt 当标题
    * 注意 h2 里可能嵌套 div/p（精排版式），只取最外层的块级元素
    */
-  function extractBlocks(htmlText) {
+  function extractBlocks(htmlText, opts) {
+    opts = opts || {};
     var doc = new DOMParser().parseFromString(htmlText, 'text/html');
     var body = doc.body;
     if (!body) return [];
@@ -120,6 +126,19 @@
         text: text
       });
     }
+
+    // 纯图页：有的书把「卷/部」做成一整页图片，文字全在 alt 里
+    // （如 <img alt="某书C．Ｉ">）。不给它兜底，整个部就会从目录里消失。
+    if (!blocks.length && opts.allowImgTitle) {
+      var img = body.querySelector('img[alt]');
+      if (img) {
+        var alt = clean(img.getAttribute('alt'));
+        if (alt && alt.length >= 2 && alt.length <= 40 && !BAD_ALT.test(alt)) {
+          blocks.push({ level: 1, tag: 'IMG', text: alt });
+        }
+      }
+    }
+
     return blocks;
   }
 
@@ -153,6 +172,15 @@
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       if (!b.tag) continue;
+
+      if (b.tag === 'IMG') {
+        // 图片承载的部标题，固定按卷级处理
+        b.level = 1;
+        total++;
+        vols++;
+        continue;
+      }
+
       var lv = levelFromTitle(b.text);
       b.level = lv || 2;          // 判断不出的一律当普通章节
       total++;
@@ -280,7 +308,8 @@
         stats.empty++;
         continue;
       }
-      var bs = extractBlocks(html);
+      // spine 第一页通常是整本书封面，不允许把它的 alt 当标题
+      var bs = extractBlocks(html, { allowImgTitle: si > 0 });
       stats.files++;
       if (!bs.length) { stats.empty++; continue; }
 
