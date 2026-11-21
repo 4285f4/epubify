@@ -526,7 +526,8 @@
 
     var i1 = document.createElement('span');
     i1.className = 'idx';
-    i1.textContent = idx + 1;
+    i1.textContent = '#' + (idx + 1);
+    i1.title = '第 ' + (idx + 1) + ' 章（按当前列表位置）';
 
     var t = document.createElement('span');
     t.className = 'title';
@@ -539,8 +540,12 @@
 
     var ch2 = document.createElement('span');
     ch2.className = 'chars' + (isFront ? ' front-badge' : '');
-    ch2.textContent = ch.type === 'cover' ? '封面页'
-      : (ch.type === 'toc' ? '目录页' : fmtChars(ch.chars));
+    if (isFront) {
+      ch2.textContent = ch.type === 'cover' ? '封面页' : '目录页';
+    } else {
+      ch2.textContent = fmtChars(ch.chars) + ' 字';
+      ch2.title = '共 ' + ch.chars.toLocaleString('zh-CN') + ' 字';
+    }
 
     var acts = document.createElement('span');
     acts.className = 'row-actions';
