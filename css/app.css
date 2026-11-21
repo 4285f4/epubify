@@ -115,6 +115,9 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .chapter-row:hover { background: #f7f9fc; }
 .chapter-row.is-selected { background: var(--accent-soft); }
 .chapter-row.is-deleted { opacity: .4; text-decoration: line-through; }
+/* 内容被丢弃（Shift 移除）用红色删除线，与「并入上一章」区分 */
+.chapter-row.is-dropped { text-decoration-color: #c0392b; }
+.chapter-row.is-dropped .title { color: #c0392b; }
 .chapter-row .toggle {
   flex: 0 0 13px;
   width: 13px;
