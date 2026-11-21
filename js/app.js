@@ -490,7 +490,9 @@
     var b = document.createElement('span'); b.innerHTML = '总 <b>' + state.chapters.length + '</b>';
     st.appendChild(a); st.appendChild(b);
     if (rows.length !== state.chapters.length) {
-      var c = document.createElement('span'); c.textContent = '（已筛选）';
+      var searching = ($('searchBox').value || '').trim().length > 0;
+      var c = document.createElement('span');
+      c.textContent = searching ? '（已筛选）' : '（已折叠）';
       st.appendChild(c);
     }
   }
@@ -501,7 +503,8 @@
     row.className = 'chapter-row lv' + Math.min(ch.level, 4) +
       (isFront ? ' is-front' : '') +
       (state.selection[idx] ? ' is-selected' : '') +
-      (ch.deleted ? ' is-deleted' : '');
+      (ch.deleted ? ' is-deleted' : '') +
+      (ch.deleted === 'drop' ? ' is-dropped' : '');
     row.style.top = (visualIdx * ROW_H) + 'px';
     row.dataset.idx = idx;
     row.dataset.visual = visualIdx;
@@ -544,7 +547,9 @@
     acts.appendChild(mkBtn('−', '降为下级', function (e) { e.stopPropagation(); nudgeLevel([idx], -1); }));
     acts.appendChild(mkBtn('+', '升为上级', function (e) { e.stopPropagation(); nudgeLevel([idx], 1); }));
     acts.appendChild(mkBtn('✎', '重命名（也可双击标题）', function (e) { e.stopPropagation(); inlineRename(idx, ch); }));
-    acts.appendChild(mkBtn(ch.deleted ? '↺' : '×', ch.deleted ? '恢复' : '删除（Shift 点彻底删除）',
+    acts.appendChild(mkBtn(ch.deleted ? '↺' : '×',
+      ch.deleted ? '恢复本章'
+        : '移除本章：内容并入上一章｜按住 Shift 移除并丢弃内容｜两种都可用 ↺ 撤回',
       function (e) { e.stopPropagation(); toggleDelete([idx], e.shiftKey); }, !ch.deleted ? 'del' : ''));
 
     row.appendChild(toggle);
@@ -853,8 +858,13 @@
       if (anyAlive) c.deleted = (hard || c.type !== 'text') ? 'drop' : 'merge';
       else c.deleted = null;
     });
-    setStatus((anyAlive ? '已删除 ' : '已恢复 ') + idxs.length + ' 章' +
-      (anyAlive && hard ? '（内容丢弃）' : anyAlive ? '（内容并入上一章）' : ''));
+    if (anyAlive) {
+      setStatus('已移除 ' + idxs.length + ' 章，' +
+        (hard ? '内容丢弃' : '内容并入上一章') +
+        ' · 点行尾 ↺ 可撤回（生成前有效）');
+    } else {
+      setStatus('已恢复 ' + idxs.length + ' 章');
+    }
     renderFileCard();
     renderList();
     fillPreviewSelect();

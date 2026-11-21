@@ -232,6 +232,45 @@ function ok(name, cond, detail) {
   }
   if (ep) { fs.renameSync(ep, path.join(__dirname, 'v9-out.epub')); console.log('  v9-out.epub'); }
 
+  console.log('\n【8】两种移除方式的提示与视觉区分');
+  const s8 = await evaluate(`(async () => {
+    const rowEl = () => document.querySelector('.chapter-row[data-idx="2"]');
+    const delBtn = () => rowEl().querySelectorAll('.row-actions button')[3];
+
+    delBtn().dispatchEvent(new MouseEvent('click', {bubbles:true}));
+    await new Promise(r => setTimeout(r, 220));
+    const normal = {
+      cls: rowEl().className,
+      status: document.getElementById('statusText').textContent,
+      state: __epubify.state.chapters[2].deleted
+    };
+
+    delBtn().dispatchEvent(new MouseEvent('click', {bubbles:true}));
+    await new Promise(r => setTimeout(r, 220));
+    const afterRestore = __epubify.state.chapters[2].deleted;
+
+    delBtn().dispatchEvent(new MouseEvent('click', {bubbles:true, shiftKey:true}));
+    await new Promise(r => setTimeout(r, 220));
+    const hard = {
+      cls: rowEl().className,
+      status: document.getElementById('statusText').textContent,
+      state: __epubify.state.chapters[2].deleted
+    };
+
+    delBtn().dispatchEvent(new MouseEvent('click', {bubbles:true}));
+    await new Promise(r => setTimeout(r, 220));
+    return { normal, afterRestore, hard, final: __epubify.state.chapters[2].deleted };
+  })()`);
+  ok('普通移除：内容并入上一章', s8.normal.state === 'merge' && /并入上一章/.test(s8.normal.status), s8.normal);
+  ok('普通移除：提示可撤回', /撤回/.test(s8.normal.status), s8.normal.status);
+  ok('普通移除：无红色标记', s8.normal.cls.indexOf('is-dropped') < 0, s8.normal.cls);
+  ok('Shift 移除：内容丢弃', s8.hard.state === 'drop' && /丢弃/.test(s8.hard.status), s8.hard);
+  ok('Shift 移除：红色删除线', s8.hard.cls.indexOf('is-dropped') >= 0, s8.hard.cls);
+  ok('Shift 移除同样可撤回', /撤回/.test(s8.hard.status), s8.hard.status);
+  ok('两种方式都能恢复', s8.afterRestore === null && s8.final === null, {
+    恢复后: s8.afterRestore, 最终: s8.final
+  });
+
   console.log('\n=== 汇总 ===');
   const pass = results.filter(r => r.pass).length;
   console.log(`${pass}/${results.length} 通过`);
