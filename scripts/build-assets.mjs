@@ -39,11 +39,9 @@ for (const name of ENTRIES) {
 /* ---- 版本信息 ---- */
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
-const now = new Date();
-const p2 = n => String(n).padStart(2, '0');
-const buildTime =
-  `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ` +
-  `${p2(now.getHours())}:${p2(now.getMinutes())}`;
+// 统一存 UTC 时间戳：本地构建是 GMT+8、Cloudflare 构建机是 UTC，
+// 直接写本地时间会导致两处显示差 8 小时。前端再按访问者时区格式化。
+const buildTime = new Date().toISOString();
 
 let commit = '';
 try {

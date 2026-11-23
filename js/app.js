@@ -1894,6 +1894,16 @@
     });
   }
 
+  /** 构建时间存的是 UTC，按访问者本地时区显示 */
+  function fmtLocalTime(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);   // 旧格式解析不了就原样显示
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
   /* ---------------- 关于（版本信息） ---------------- */
   function bindAbout() {
     var mask = $('aboutMask');
@@ -1903,7 +1913,12 @@
       // 直接双击 index.html 时不存在，退回「开发版」
       var info = window.__BUILD_INFO || {};
       $('aboutVersion').textContent = info.version ? 'v' + info.version : '开发版（未构建）';
-      $('aboutBuild').textContent = info.buildTime || '—';
+
+      // 构建时间存的是 UTC，按访问者所在时区显示，避免本地/云端构建差几小时
+      var bt = $('aboutBuild');
+      bt.textContent = fmtLocalTime(info.buildTime);
+      bt.title = info.buildTime ? 'UTC ' + info.buildTime : '';
+
       $('aboutCommit').textContent = info.commit || '—';
       if (info.repo) {
         var a = $('aboutRepo');
