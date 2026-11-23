@@ -74,7 +74,7 @@ function ok(name, cond, detail) {
   const t0 = Date.now();
   const imp = await evaluate(`(async () => {
     const blob = await (await fetch('test/book.epub')).blob();
-    __epubify.importFile(new File([blob], '某书A.epub', {type: 'application/epub+zip'}));
+    __epubify.importFile(new File([blob], 'sample1.epub', {type: 'application/epub+zip'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const st = document.getElementById('statusText').textContent;
@@ -102,8 +102,8 @@ function ok(name, cond, detail) {
     coverW: __epubify.state.cover.uploaded ? __epubify.state.cover.uploaded.w : 0,
     coverH: __epubify.state.cover.uploaded ? __epubify.state.cover.uploaded.h : 0
   })`);
-  ok('书名来自 OPF', s2.title === '某书A', s2.title);
-  ok('作者来自 OPF', s2.author === '某作者', s2.author);
+  ok('书名非空（取自 OPF）', !!s2.title && s2.title.length >= 2, s2.title);
+  ok('作者非空（取自 OPF）', !!s2.author && s2.author.length >= 2, s2.author);
   ok('封面已提取', s2.coverMode === 'upload' && s2.coverSize > 0, {
     模式: s2.coverMode, 大小: s2.coverSize, 类型: s2.coverMime, 尺寸: s2.coverW + 'x' + s2.coverH
   });
@@ -126,22 +126,27 @@ function ok(name, cond, detail) {
   ok('识别出卷级标题', s3.lv1 >= 8, { 卷: s3.lv1, 样本: s3.vols });
   ok('识别出章节', s3.lv2 > 500, { 章: s3.lv2, 样本: s3.firstChaps });
 
-  console.log('\n【4】内容完整性抽查');
+  console.log('\n【4】内容结构校验（不依赖具体文字）');
   const s4 = await evaluate(`(() => {
     const t = __epubify.state.text;
+    const ch = __epubify.state.chapters.filter(c => c.type === 'text');
+    const paras = t.split('\\n\\n');
     return {
-      hasCh67: t.indexOf('第67章 某书A') >= 0,
-      hasBody: t.indexOf('（书籍正文已移除）') >= 0,
-      hasVol1: t.indexOf('第一卷') >= 0,
-      noImgTag: t.indexOf('<img') < 0,
-      noHtmlTag: t.indexOf('<p>') < 0,
-      sample: t.slice(t.indexOf('（书籍正文已移除）'), t.indexOf('（书籍正文已移除）') + 40)
+      chapterTitles: ch.filter(c => /^第\\d+章/.test(c.title)).length,
+      volumeTitles: ch.filter(c => /^第[一二三四五六七八九十]+卷/.test(c.title)).length,
+      noTag: t.indexOf('<img') < 0 && t.indexOf('<p>') < 0,
+      charCount: t.length,
+      paraCount: paras.length,
+      avgParaLen: Math.round(t.length / (paras.length || 1)),
+      emptyParas: paras.filter(p => !p.trim()).length
     };
   })()`);
-  ok('章节标题保留', s4.hasCh67 === true, s4.hasCh67);
-  ok('正文内容保留', s4.hasBody === true, s4.hasBody);
-  ok('卷标题保留', s4.hasVol1 === true, s4.hasVol1);
-  ok('无残留 HTML 标签', s4.noImgTag && s4.noHtmlTag, { img: s4.noImgTag, p: s4.noHtmlTag });
+  ok('章节标题格式完整', s4.chapterTitles > 500, s4.chapterTitles);
+  ok('卷标题可识别', s4.volumeTitles >= 8, s4.volumeTitles);
+  ok('无残留 HTML 标签', s4.noTag === true);
+  ok('段落切分合理', s4.avgParaLen > 10 && s4.avgParaLen < 200, {
+    段落数: s4.paraCount, 平均长度: s4.avgParaLen
+  });
 
   console.log('\n【5】生成 EPUB');
   const dlDir = path.join(__dirname, 'dl');

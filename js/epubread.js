@@ -128,7 +128,7 @@
     }
 
     // 纯图页：有的书把「卷/部」做成一整页图片，文字全在 alt 里
-    // （如 <img alt="某书C．Ｉ">）。不给它兜底，整个部就会从目录里消失。
+    // （如 <img alt="某某书名．Ｉ">）。不给它兜底，整个部就会从目录里消失。
     if (!blocks.length && opts.allowImgTitle) {
       var img = body.querySelector('img[alt]');
       if (img) {

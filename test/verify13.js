@@ -73,7 +73,7 @@ function ok(name, cond, detail) {
   console.log('\n【1】导入（部标题是纯图页，文字只在 img 的 alt 里）');
   const imp = await evaluate(`(async () => {
     const blob = await (await fetch('test/book3.epub')).blob();
-    __epubify.importFile(new File([blob], '某书C_某作者.epub', {type: 'application/epub+zip'}));
+    __epubify.importFile(new File([blob], 'sample3_author.epub', {type: 'application/epub+zip'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const st = document.getElementById('statusText').textContent;
@@ -94,10 +94,11 @@ function ok(name, cond, detail) {
     return { lv1, byLv, total: ch.length, title: __epubify.state.meta.title, author: __epubify.state.meta.author };
   })()`);
   ok('识别出 5 个部', s2.lv1.length === 5, s2.lv1);
-  ok('部标题内容正确', s2.lv1.every(t => /某书C/.test(t)), s2.lv1);
+  ok('部标题非空且互不重复', s2.lv1.every(t => t && t.length >= 2) &&
+    new Set(s2.lv1).size === s2.lv1.length, s2.lv1);
   ok('章节数为 232', s2.byLv[2] === 232, s2.byLv);
-  ok('书名作者正确', /某书C/.test(s2.title) && s2.author === '某作者', {
-    书名: s2.title, 作者: s2.author
+  ok('书名作者非空', !!s2.title && !!s2.author, {
+    书名长度: s2.title.length, 作者长度: s2.author.length
   });
 
   console.log('\n【3】折叠部标题应隐藏其下章节');

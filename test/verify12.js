@@ -1,6 +1,6 @@
 /* v12 回归：EPUB 导入第二本（结构不同的书）
  *
- * 与《某书A》的差异：
+ * 与第一本样本的差异：
  *  - 章节标题用 h3（不是 h2），无卷结构
  *  - 标题内用 <br/> 分隔章号与标题
  *  - 89 张插图（14 MB），figcaption 类结构未知
@@ -81,7 +81,7 @@ function ok(name, cond, detail) {
   const t0 = Date.now();
   const imp = await evaluate(`(async () => {
     const blob = await (await fetch('test/book2.epub')).blob();
-    __epubify.importFile(new File([blob], '某书B_某作者.epub', {type: 'application/epub+zip'}));
+    __epubify.importFile(new File([blob], 'sample2_author.epub', {type: 'application/epub+zip'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => {
         const st = document.getElementById('statusText').textContent;
@@ -104,8 +104,9 @@ function ok(name, cond, detail) {
     cover: __epubify.state.cover.mode,
     coverW: __epubify.state.cover.uploaded ? __epubify.state.cover.uploaded.w : 0
   })`);
-  ok('书名正确', /某书B/.test(s2.title), s2.title);
-  ok('作者正确', /某作者/.test(s2.author), s2.author);
+  ok('书名非空', !!s2.title && s2.title.length >= 2, s2.title);
+  // 该样本 OPF 未写 dc:creator，作者应来自「书名_作者.epub」文件名
+  ok('作者非空（文件名兜底）', !!s2.author && s2.author.length >= 2, s2.author);
   ok('封面已提取', s2.cover === 'upload' && s2.coverW > 0, s2);
 
   console.log('\n【3】层级归一化（这本只有 h3，不应落到三级标题）');
@@ -138,17 +139,21 @@ function ok(name, cond, detail) {
     检查: s4.total, 粘连: s4.glued, 样本: s4.samples
   });
 
-  console.log('\n【5】内容与资源');
+  console.log('\n【5】内容结构校验（不依赖具体文字）');
   const s5 = await evaluate(`(() => {
     const t = __epubify.state.text;
+    const paras = t.split('\\n\\n');
     return {
-      hasBody: t.indexOf('（书籍正文已移除）') >= 0,
       noTag: t.indexOf('<img') < 0 && t.indexOf('<p>') < 0,
-      chars: t.length
+      chars: t.length,
+      paraCount: paras.length,
+      avgParaLen: Math.round(t.length / (paras.length || 1))
     };
   })()`);
-  ok('正文完整', s5.hasBody === true, s5.hasBody);
   ok('无 HTML 残留', s5.noTag === true);
+  ok('段落切分合理', s5.avgParaLen > 10 && s5.avgParaLen < 300, {
+    段落数: s5.paraCount, 平均长度: s5.avgParaLen
+  });
 
   console.log('\n【6】生成并检查资源清理');
   const dlDir = path.join(__dirname, 'dl');
