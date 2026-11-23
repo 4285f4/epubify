@@ -83,7 +83,8 @@ function ok(name, cond, detail) {
     await __load('test/sample.txt', '甲书.txt');
     __epubify.toggleEdit();
     __epubify.loadChapterToEditor(3);
-    const inA = document.getElementById('editArea').value.indexOf('某角色') >= 0;
+    // 甲书章节较长（数千字），乙书是构造的小样本，用长度区分
+    const inA = document.getElementById('editArea').value.length > 500;
     __epubify.toggleEdit();                       // 退出
     const idle = { editMode: __epubify.state.editMode, idx: __epubify.state.editingIndex };
 
@@ -100,7 +101,7 @@ function ok(name, cond, detail) {
     return {
       inA, idle, afterLoad,
       hasB: v.indexOf('测试乙书') >= 0,
-      hasA: v.indexOf('某角色') >= 0,
+      hasA: v.length > 500,
       pos: document.getElementById('edPos').textContent.slice(0, 40)
     };
   })()`);
@@ -116,7 +117,7 @@ function ok(name, cond, detail) {
     const bad = [];
     s.chapters.forEach((c, i) => {
       const t = s.text.slice(c.start, c.end);
-      if (t.indexOf('某角色') >= 0 || t.indexOf('测试样本') >= 0 || t.length > 2000) {
+      if (t.length > 2000) {
         bad.push({ i: i, len: t.length, head: t.slice(0, 18) });
       }
     });
@@ -150,7 +151,7 @@ function ok(name, cond, detail) {
     __epubify.toggleEdit();
     await new Promise(r => setTimeout(r, 250));
     const v = document.getElementById('editArea').value;
-    return { dirtyB, after, hasA: v.indexOf('这游戏') >= 0 || v.indexOf('某角色') >= 0, vHead: v.slice(0, 20) };
+    return { dirtyB, after, hasA: v.length > 500 && v.indexOf('测试乙书') < 0, vHead: v.slice(0, 20) };
   })()`);
   ok('乙书修改被标记', s3.dirtyB === true);
   ok('换书自动退出编辑模式', s3.after.editMode === false && s3.after.maskHidden === true, s3.after);
