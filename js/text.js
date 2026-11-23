@@ -121,13 +121,15 @@
         else if (extra && extra.test(line)) kind = 'extra';
 
         if (kind) {
-          /* 信号强度：「第X章/回」与关键词是强信号，直接认；
-             「第X部/卷」是弱信号，正文里"第一部分首先揭示了…"极易误命中，需额外收紧 */
-          var strong = kind === 'extra' || RE_L2.test(line) || RE_L2_EN.test(line) ||
-            /^[ \t\u3000]*第\s*[0-9一二三四五六七八九十零〇百千两]+\s*[章回节集话]/.test(line);
+          /* 信号强度：「第X章/回」几乎不会出现在正文句首，视为强信号；
+             「第X节/集/话」在正文里很常见（如「第一节晚自习下课后，……」），
+             必须继续走 looksLikeProse 过滤，否则整句正文会被切成章节 */
+          var strong = kind === 'extra' ||
+            /^[ \t\u3000]*第\s*[0-9一二三四五六七八九十零〇百千两]+\s*[章回]/.test(line) ||
+            /^[ \t\u3000]*chapter\b/i.test(line);
           if (!strong) {
             if (rules.filterProse && looksLikeProse(line)) kind = null;
-            else if (line.trim().length > 25) kind = null;   // 卷名不会太长
+            else if (line.trim().length > 25) kind = null;   // 卷名/章名不会太长
           }
         }
         if (kind) {
@@ -179,6 +181,18 @@
     if (rules.emptyChapterMode === 'skip') {
       chapters = chapters.filter(function (c) { return c.chars > 20 || c.level !== 1; });
     }
+
+    // 全书没有「卷」级标题时，统一按章节级排版。
+    // 否则「内容简介」会独自占一级，后面的章节看起来全比它低一级，
+    // 而且一级标题带 35% 顶部留白，首屏会空出一大片。
+    var hasVolume = false;
+    for (var v = 0; v < chapters.length; v++) {
+      if (!chapters[v].fixedTitle && chapters[v].level === 1) { hasVolume = true; break; }
+    }
+    if (!hasVolume) {
+      for (var w = 0; w < chapters.length; w++) chapters[w].level = 2;
+    }
+
     return chapters;
   }
 

@@ -1000,6 +1000,9 @@
     renderFileCard();
     renderList();
     fillPreviewSelect();
+    // 合并/丢弃会改变相邻章节的正文区间，预览必须重绘，
+    // 否则切到上一章看到的还是合并前的内容
+    refreshPreview();
   }
 
   function applyBulk(action) {
@@ -1259,8 +1262,26 @@
     }
   }
 
+  /**
+   * 章节的实际结尾：紧随其后被标记「并入上一章」的章节，内容也算本章的。
+   * 生成时由 collectChapters 处理，预览也要用同一规则，否则删掉下一章后
+   * 预览里的上一章还是旧内容。
+   */
+  function effectiveEnd(c) {
+    var idx = state.chapters.indexOf(c);
+    if (idx < 0) return c.end;
+    var end = c.end;
+    for (var i = idx + 1; i < state.chapters.length; i++) {
+      var n = state.chapters[i];
+      if (n.type !== 'text') break;
+      if (n.deleted === 'merge') { end = n.end; continue; }
+      break;
+    }
+    return end;
+  }
+
   function chapterBody(c) {
-    var raw = state.text.slice(c.start, c.end);
+    var raw = state.text.slice(c.start, effectiveEnd(c));
     var nl = raw.indexOf('\n');
     var bodyText = nl >= 0 ? raw.slice(nl + 1) : raw;
     return EasyText.toXHTML(bodyText, {
