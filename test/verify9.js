@@ -66,7 +66,7 @@ function ok(name, cond, detail) {
 
   console.log('\n【1】导入带卷层级的样本');
   await evaluate(`(async () => {
-    const blob = await (await fetch('test/sample.txt')).blob();
+    const blob = await (await fetch('test/测试样本_测试作者.txt')).blob();
     __epubify.importFile(new File([blob], '甲书.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);

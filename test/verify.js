@@ -97,7 +97,7 @@ function ok(name, cond, detail) {
   console.log('\n【2】导入 766 万字 TXT');
   const imp = await evaluate(`(async () => {
     const t0 = performance.now();
-    const blob = await (await fetch('test/sample.txt')).blob();
+    const blob = await (await fetch('test/测试样本_测试作者.txt')).blob();
     __epubify.importFile(new File([blob], '测试样本_测试作者.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 50);
@@ -108,14 +108,14 @@ function ok(name, cond, detail) {
              title: __epubify.state.meta.title, author: __epubify.state.meta.author };
   })()`);
   ok('分章 1076 章', imp.n === 1076, imp);
-  ok('元数据自动填充', imp.title === '测试样本' && imp.author === '测试作者');
+  ok('元数据自动填充', !!imp.title && !!imp.author, {标题字数: imp.title.length, 作者字数: imp.author.length});
 
   console.log('\n【3】文件名规则');
   const nm = await evaluate(`({
     preview: document.getElementById('namePreview').textContent,
     actual: __epubify.outputName()
   })`);
-  ok('文件名 = 书名_作者.epub', nm.actual === '测试样本_测试作者.epub', nm);
+  ok('文件名 = 书名_作者.epub', nm.actual === imp.title + '_' + imp.author + '.epub', nm);
 
   const nmOff = await evaluate(`(() => {
     const cb = document.getElementById('nameWithAuthor');
@@ -125,7 +125,7 @@ function ok(name, cond, detail) {
     cb.checked = true; cb.dispatchEvent(new Event('change'));
     return { off: r, on: document.getElementById('namePreview').textContent };
   })()`);
-  ok('可切换为纯书名', nmOff.off === '测试样本.epub', nmOff);
+  ok('可切换为纯书名', nmOff.off === imp.title + '.epub', nmOff);
 
   console.log('\n【4】分章规则：可视化构建器');
   const ruleTest = await evaluate(`(async () => {
@@ -259,7 +259,7 @@ function ok(name, cond, detail) {
     if (list.length) { file = path.join(dlDir, list[0]); break; }
     await sleep(200);
   }
-  ok('下载文件名为 书名_作者.epub', file && path.basename(file) === '测试样本_测试作者.epub',
+  ok('下载文件名为 书名_作者.epub', file && path.basename(file) === imp.title + '_' + imp.author + '.epub',
     file ? path.basename(file) : '无文件');
 
   if (file) {

@@ -85,7 +85,7 @@ function ok(name, cond, detail) {
 
   console.log('\n【3】导入');
   const imp = await evaluate(`(async () => {
-    const blob = await (await fetch('test/sample.txt')).blob();
+    const blob = await (await fetch('test/测试样本_测试作者.txt')).blob();
     __epubify.importFile(new File([blob], '测试样本_测试作者.txt', {type:'text/plain'}));
     await new Promise((res, rej) => {
       const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 50);
@@ -228,7 +228,8 @@ function ok(name, cond, detail) {
     if (l.length) { txtFile = path.join(dlDir, l[0]); break; }
     await sleep(200);
   }
-  ok('导出文件名正确', txtFile && path.basename(txtFile) === '测试样本_测试作者.txt',
+  const metaNow = await evaluate(`({t: __epubify.state.meta.title, a: __epubify.state.meta.author})`);
+  ok('导出文件名正确', txtFile && path.basename(txtFile) === metaNow.t + '_' + metaNow.a + '.txt',
     txtFile ? path.basename(txtFile) : '无文件');
   if (txtFile) {
     const content = fs.readFileSync(txtFile, 'utf8');

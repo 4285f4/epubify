@@ -899,7 +899,38 @@
     }
   }
 
+  /** 切换右侧面板的标签页；切到预览时要重绘一次 */
+  function switchTab(name) {
+    var btn = document.querySelector('#tabs .tab[data-tab="' + name + '"]');
+    if (!btn) return;
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function (t) {
+      t.classList.remove('active');
+    });
+    btn.classList.add('active');
+    Array.prototype.forEach.call(document.querySelectorAll('.tab-pane'), function (p) {
+      p.classList.toggle('active', p.dataset.pane === name);
+    });
+    if (name === 'preview') refreshPreview();
+  }
+
+  /**
+   * 按当前设备推断预览宽度：手机 → phone，平板 → tablet，桌面 → full
+   * 先看 UA（横屏手机宽度可能很大），再按视口宽度兜底
+   */
+  function detectPreviewDevice() {
+    var ua = navigator.userAgent || '';
+    if (/iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+        (/Android/i.test(ua) && !/Mobile/i.test(ua))) return 'tablet';
+    if (/iPhone|iPod|Windows Phone|Mobile/i.test(ua)) return 'phone';
+    var w = window.innerWidth || 1024;
+    if (w < 700) return 'phone';
+    if (w < 1100) return 'tablet';
+    return 'full';
+  }
+
   function handleRowClick(e, idx) {
+    var multi = e.shiftKey || e.ctrlKey || e.metaKey;
+
     if (e.shiftKey && state.anchor >= 0) {
       var a = Math.min(state.anchor, idx);
       var b = Math.max(state.anchor, idx);
@@ -920,7 +951,12 @@
     updateSelectionClasses();     // 不重建 DOM，保证双击改名可用
     updateBulkBar();
     refreshPreview();
-    if (state.editMode) loadChapterToEditor(idx);
+    if (state.editMode) {
+      loadChapterToEditor(idx);
+    } else if (!multi) {
+      // 单击直接看内容；Ctrl/Shift 多选用于批量操作，不打断当前面板
+      switchTab('preview');
+    }
   }
 
   function updateBulkBar() {
@@ -1807,10 +1843,13 @@
       refreshPreview();
     });
 
-    setSegmented('previewDevice', 'phone', function (v) {
-      var f = $('previewFrame');
-      f.className = 'preview-frame ' + v;
+    // 按当前设备给预览选一个合适的宽度；用户手动切换后不再干预
+    var initDevice = detectPreviewDevice();
+    setSegmented('previewDevice', initDevice, function (v) {
+      $('previewFrame').className = 'preview-frame ' + v;
     });
+    // setSegmented 只置按钮状态、不触发回调，这里补一次初始应用
+    $('previewFrame').className = 'preview-frame ' + initDevice;
   }
 
   function updateCoverPreview() {
@@ -1957,12 +1996,7 @@
     $('tabs').addEventListener('click', function (e) {
       var b = e.target.closest('.tab');
       if (!b) return;
-      Array.prototype.forEach.call(this.querySelectorAll('.tab'), function (t) { t.classList.remove('active'); });
-      b.classList.add('active');
-      Array.prototype.forEach.call(document.querySelectorAll('.tab-pane'), function (p) {
-        p.classList.toggle('active', p.dataset.pane === b.dataset.tab);
-      });
-      if (b.dataset.tab === 'preview') refreshPreview();
+      switchTab(b.dataset.tab);
     });
 
     // 拖拽导入：只认「文件」，页面内部拖动（选文字、拖章节等）不触发

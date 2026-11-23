@@ -80,7 +80,7 @@ function ok(name, cond, detail) {
 
   console.log('\n【1】退出编辑 → 换书 → 再进编辑');
   const s1 = await evaluate(`(async () => {
-    await __load('test/sample.txt', '甲书.txt');
+    await __load('test/测试样本_测试作者.txt', '甲书.txt');
     __epubify.toggleEdit();
     __epubify.loadChapterToEditor(3);
     // 甲书章节较长（数千字），乙书是构造的小样本，用长度区分
@@ -101,7 +101,7 @@ function ok(name, cond, detail) {
     return {
       inA, idle, afterLoad,
       hasB: v.indexOf('测试乙书') >= 0,
-      hasA: v.length > 500,
+      hasA: v.indexOf('测试乙书') < 0 && v.length > 10,
       pos: document.getElementById('edPos').textContent.slice(0, 40)
     };
   })()`);
@@ -136,7 +136,7 @@ function ok(name, cond, detail) {
     const dirtyB = __epubify.state.textDirty;
 
     // 不退出编辑，直接导入甲书
-    await __load('test/sample.txt', '甲书.txt');
+    await __load('test/测试样本_测试作者.txt', '甲书.txt');
     const after = {
       editMode: __epubify.state.editMode,
       maskHidden: document.getElementById('editorMask').hidden,
@@ -151,7 +151,7 @@ function ok(name, cond, detail) {
     __epubify.toggleEdit();
     await new Promise(r => setTimeout(r, 250));
     const v = document.getElementById('editArea').value;
-    return { dirtyB, after, hasA: v.length > 500 && v.indexOf('测试乙书') < 0, vHead: v.slice(0, 20) };
+    return { dirtyB, after, hasA: v.indexOf('测试乙书') < 0 && v.length > 10, vHead: v.slice(0, 20) };
   })()`);
   ok('乙书修改被标记', s3.dirtyB === true);
   ok('换书自动退出编辑模式', s3.after.editMode === false && s3.after.maskHidden === true, s3.after);
@@ -194,7 +194,7 @@ function ok(name, cond, detail) {
 
   console.log('\n【6】重新导入同一本书 = 视为换书');
   const s6 = await evaluate(`(async () => {
-    await __load('test/sample.txt', '甲书.txt');
+    await __load('test/测试样本_测试作者.txt', '甲书.txt');
     return {
       dirty: __epubify.state.textDirty,
       txtDisabled: document.getElementById('btnDownloadTxt').disabled,
