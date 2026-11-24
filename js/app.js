@@ -783,6 +783,12 @@
     if (e.button !== 0) return;
     if (e.target.closest('button') || e.target.closest('input')) return;
     if (!state.chapters.length) return;
+
+    // Shift 连选会顺带触发浏览器的文本选择，视觉上很难看；行本身已
+    // 设 user-select:none，这里再清一次残留选区
+    var sel = window.getSelection();
+    if (sel && !sel.isCollapsed) sel.removeAllRanges();
+
     // 筛选状态下拖动语义不清，直接禁用
     if (($('searchBox').value || '').trim()) return;
 
@@ -2156,6 +2162,13 @@
           paintRows();
         });
       }
+    });
+
+    // Shift 连选会进入浏览器的「扩展选择」状态，拖动时连带把章节标题选成
+    // 蓝底文字。行本身已设 user-select:none，这里在 selectstart 阶段直接拦掉
+    document.addEventListener('selectstart', function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest('#chapterList')) e.preventDefault();
     });
 
     // 批量操作条
