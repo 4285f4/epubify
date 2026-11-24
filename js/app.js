@@ -374,6 +374,19 @@
     return '^[ \\t\\u3000]*(?:' + branches.join('|') + ').*$';
   }
 
+  /**
+   * 把 state.rules 写回界面。
+   * init 时必须调一次：syncRules 是从界面读值的，输入框初始为空，
+   * 不先写回去的话首次 syncRules 会把默认的额外关键词抹成空字符串。
+   */
+  function syncRulesToUI() {
+    $('extraKeywords').value = state.rules.extraKeywords || '';
+    $('fullRegex').value = state.rules.fullRegex || '';
+    $('levelBySuffix').checked = state.rules.levelBySuffix !== false;
+    $('filterProse').checked = state.rules.filterProse !== false;
+    if ($('emptyMode')) $('emptyMode').value = state.rules.emptyChapterMode || 'page';
+  }
+
   function syncRules() {
     state.builder.prefixes = chipsOf('prefixChips');
     state.builder.suffixes = chipsOf('suffixChips');
@@ -2087,6 +2100,7 @@
 
     bindMeta();
     bindSplit();
+    syncRulesToUI();
     bindLayout();
     bindStyle();
     bindCover();

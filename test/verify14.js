@@ -95,7 +95,7 @@ function ok(name, cond, detail) {
       longTitles: ch.filter(c => c.title.length > 25).length
     };
   })()`);
-  ok('章节数 504', s1.total === 504, s1.total);
+  ok('章节数 505（含「后记」）', s1.total === 505, s1.total);
   ok('无「第X节」被误判为章节', s1.secLike === 0, s1.secLike);
   ok('无超长标题行被当章节', s1.longTitles === 0, s1.longTitles);
   ok('卷首与正文同级', s1.firstTwo[0].lv === s1.firstTwo[1].lv, s1.firstTwo);

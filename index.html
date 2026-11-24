@@ -205,9 +205,10 @@
         </div>
         <div class="rule-preview" id="rulePreview">—</div>
 
-        <label class="field"><span>额外关键词（简介/序言/番外…）</span>
-          <input type="text" id="extraKeywords" class="input mono"/>
+        <label class="field"><span>额外关键词</span>
+          <input type="text" id="extraKeywords" class="input mono" placeholder="简介|序言|番外"/>
         </label>
+        <div class="field-hint">多个关键词用竖线 <code>|</code> 分隔，按正则片段解析，例如 <code>简介|序言|番外</code></div>
         <div class="field-row">
           <label class="check"><input type="checkbox" id="levelBySuffix" checked/> 卷/部识别为一级目录</label>
           <label class="check"><input type="checkbox" id="filterProse" checked/> 过滤"像正文的假标题"</label>

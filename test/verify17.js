@@ -110,6 +110,19 @@ function ok(name, cond, detail) {
   const opts = await evaluate(`Array.from(document.querySelectorAll('#rulePreset option')).map(o => o.value)`);
   ok('选项已加入', opts.indexOf('paren') >= 0 && opts.indexOf('prefix') >= 0, opts);
 
+  console.log('\n【6】额外关键词：默认值不被空输入框覆盖');
+  const s6 = await evaluate(`(() => {
+    const box = document.getElementById('extraKeywords');
+    const lines = ['简介：这是介绍', '', '正文甲', '', '第一章 开端', '正文乙'];
+    const list = EasyText.parseChapters(lines.join(String.fromCharCode(10) + String.fromCharCode(10)));
+    return {
+      uiValue: box.value,
+      titles: list.filter(c => !c.fixedTitle).map(c => c.title)
+    };
+  })()`);
+  ok('输入框带出默认关键词', s6.uiValue.length > 5 && s6.uiValue.indexOf('|') > 0, s6.uiValue);
+  ok('关键词生效（简介行被识别）', s6.titles.some(t => /简介/.test(t)), s6.titles);
+
   console.log('\n=== 汇总 ===');
   const pass = results.filter(r => r.pass).length;
   console.log(`${pass}/${results.length} 通过`);
