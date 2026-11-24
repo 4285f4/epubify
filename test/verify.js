@@ -146,14 +146,17 @@ function ok(name, cond, detail) {
   ok('实时显示预计识别数', /预计识别 \d+ 章/.test(ruleTest.afterBox), ruleTest.afterBox);
 
   const presetTest = await evaluate(`(async () => {
-    const sel = document.getElementById('rulePreset');
-    sel.value = 'en';
-    sel.dispatchEvent(new Event('change'));
+    const setPresets = (vals) => {
+      document.querySelectorAll('#presetMenu input').forEach(b => {
+        b.checked = vals.indexOf(b.value) >= 0;
+      });
+      document.querySelector('#presetMenu input').dispatchEvent(new Event('change', {bubbles: true}));
+    };
+    setPresets(['en']);
     await new Promise(r => setTimeout(r, 500));
     const enReg = document.getElementById('effectiveReg').textContent;
     const enBox = document.getElementById('rulePreview').textContent;
-    sel.value = 'cn';
-    sel.dispatchEvent(new Event('change'));
+    setPresets(['cn']);
     await new Promise(r => setTimeout(r, 500));
     const cnBox = document.getElementById('rulePreview').textContent;
     return { enReg, enBox, cnBox };

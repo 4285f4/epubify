@@ -1,4 +1,4 @@
-/* v21 回归：组合预设（混排格式的书） */
+/* v21 回归：预设方案多选（混排格式的书） */
 const { spawn } = require('child_process');
 const os = require('os');
 const path = require('path');
@@ -61,89 +61,109 @@ function ok(name, cond, detail) {
   await send('Page.navigate', { url: URL });
   await sleep(1200);
 
-  // 混排样本：（一）与第X章交替
-  const TEXT = [
-    '（一）', '正文一。',
-    '第一章 开端', '正文二。',
-    '第二章 发展', '正文三。',
-    '（二）', '正文四。',
-    '第三章 转折', '正文五。'
-  ].join('\n');
-
-  console.log('\n【1】切换到组合模式');
-  const s1 = await evaluate(`(async () => {
-    const sel = document.getElementById('rulePreset');
-    sel.value = 'combo';
-    sel.dispatchEvent(new Event('change'));
+  await evaluate(`(async () => {
+    const txt = ['（一）','正文一。','第一章 开端','正文二。','（二）','正文三。','第二章 发展','正文四。'].join(String.fromCharCode(10));
+    const blob = new Blob([txt], {type: 'text/plain'});
+    __epubify.importFile(new File([blob], '混排.txt', {type: 'text/plain'}));
+    await new Promise((res, rej) => {
+      const iv = setInterval(() => { if (__epubify.state.chapters.length) { clearInterval(iv); res(); } }, 40);
+      setTimeout(() => { clearInterval(iv); rej(new Error('超时')); }, 15000);
+    });
+    await new Promise(r => setTimeout(r, 300));
+    document.querySelector('.tab[data-tab="split"]').click();
     await new Promise(r => setTimeout(r, 250));
+  })()`);
+
+  console.log('\n【1】默认状态：单选中文网文，走可视化构建器');
+  const s1 = await evaluate(`({
+    checked: Array.from(document.querySelectorAll('#presetMenu input:checked')).map(b => b.value),
+    total: document.querySelectorAll('#presetMenu input').length,
+    summary: document.getElementById('presetSummary').textContent,
+    menuHidden: document.getElementById('presetMenu').hidden,
+    mode: (document.querySelector('#splitMode button.active') || {}).dataset ? (document.querySelector('#splitMode button.active') || {}).dataset.val : ''
+  })`);
+  ok('共 6 个预设', s1.total === 6, s1.total);
+  ok('默认不勾任何预设（用内置规则）', s1.checked.length === 0, s1.checked);
+  ok('摘要说明是默认规则', /默认/.test(s1.summary), s1.summary);
+  ok('面板默认收起', s1.menuHidden === true);
+  ok('单选时用可视化构建', s1.mode === 'simple', s1.mode);
+
+  console.log('\n【2】点击展开');
+  const s2 = await evaluate(`(async () => {
+    document.getElementById('presetTrigger').click();
+    await new Promise(r => setTimeout(r, 200));
     return {
-      wrapHidden: document.getElementById('comboWrap').hidden,
-      mode: (document.querySelector('#splitMode button.active') || {}).dataset.val,
-      regex: document.getElementById('fullRegex').value
+      hidden: document.getElementById('presetMenu').hidden,
+      expanded: document.getElementById('presetTrigger').getAttribute('aria-expanded')
     };
   })()`);
-  ok('勾选组已显示', s1.wrapHidden === false, s1.wrapHidden);
-  ok('切到正则模式', s1.mode === 'regex', s1.mode);
-  ok('默认只勾了「第X章」', /第\[0-9/.test(s1.regex) && !/（/.test(s1.regex), s1.regex);
+  ok('面板展开', s2.hidden === false && s2.expanded === 'true', s2);
 
-  console.log('\n【2】只勾「第X章」：括号行不识别的预期');
-  const s2 = await evaluate(`(() => {
-    const lines = ${JSON.stringify(TEXT)}.split(String.fromCharCode(10));
-    const re = document.getElementById('fullRegex').value;
-    const list = EasyText.parseChapters(lines.join(String.fromCharCode(10)), { mode: 'regex', fullRegex: re });
-    return list.filter(c => !c.fixedTitle).map(c => c.title);
-  })()`);
-  ok('识别 3 章（不含括号行）', s2.length === 3 && s2.every(t => /^第/.test(t)), s2);
-
-  console.log('\n【3】再加上括号序号');
+  console.log('\n【3】加勾括号序号 → 自动切正则并合并');
   const s3 = await evaluate(`(async () => {
-    const cb = document.querySelector('#comboWrap input[data-combo="paren"]');
-    cb.checked = true;
-    cb.dispatchEvent(new Event('change', {bubbles: true}));
-    await new Promise(r => setTimeout(r, 250));
+    const cn = document.querySelector('#presetMenu input[value="cn"]');
+    cn.checked = true;
+    cn.dispatchEvent(new Event('change', {bubbles: true}));
+    const c = document.querySelector('#presetMenu input[value="paren"]');
+    c.checked = true;
+    c.dispatchEvent(new Event('change', {bubbles: true}));
+    await new Promise(r => setTimeout(r, 300));
     const re = document.getElementById('fullRegex').value;
-    const lines = ${JSON.stringify(TEXT)}.split(String.fromCharCode(10));
-    const list = EasyText.parseChapters(lines.join(String.fromCharCode(10)), { mode: 'regex', fullRegex: re });
+    const lines = ['（一）','正文一。','第一章 开端','正文二。','（二）','正文三。','第二章 发展','正文四。'].join(String.fromCharCode(10));
+    const list = EasyText.parseChapters(lines, { mode: 'regex', fullRegex: re });
     return {
+      summary: document.getElementById('presetSummary').textContent,
+      mode: (document.querySelector('#splitMode button.active') || {}).dataset.val,
       regex: re,
       titles: list.filter(c => !c.fixedTitle).map(c => c.title)
     };
   })()`);
+  ok('摘要列出两项', /中文网文.*\+.*括号序号/.test(s3.summary), s3.summary);
+  ok('自动切到正则模式', s3.mode === 'regex', s3.mode);
   ok('正则含两个分支', s3.regex.split('|').length - 1 === 1, s3.regex);
-  ok('识别 5 章（两种格式都认）', s3.titles.length === 5, s3.titles);
-  ok('括号与第X章都在', s3.titles.indexOf('（一）') >= 0 && s3.titles.indexOf('第三章 转折') >= 0, s3.titles);
+  ok('两种格式都识别（4 章）', s3.titles.length === 4, s3.titles);
 
-  console.log('\n【4】同时勾「卷名前置」不应把普通章节拆开');
+  console.log('\n【4】取消全部勾选 → 回到默认规则');
   const s4 = await evaluate(`(async () => {
-    const cb = document.querySelector('#comboWrap input[data-combo="prefix"]');
-    cb.checked = true;
-    cb.dispatchEvent(new Event('change', {bubbles: true}));
+    document.querySelectorAll('#presetMenu input').forEach(b => { b.checked = false; });
+    document.querySelector('#presetMenu input').dispatchEvent(new Event('change', {bubbles: true}));
     await new Promise(r => setTimeout(r, 250));
-    const re = document.getElementById('fullRegex').value;
-    const lines = ['第一卷 第1章 开端','正文甲','第一卷 第2章 发展','正文乙','（三）','正文丙'].join(String.fromCharCode(10));
-    const list = EasyText.parseChapters(lines, { mode: 'regex', fullRegex: re });
-    return list.filter(c => !c.fixedTitle).map(c => c.title);
+    return {
+      mode: (document.querySelector('#splitMode button.active') || {}).dataset.val,
+      summary: document.getElementById('presetSummary').textContent,
+      suffixes: Array.from(document.querySelectorAll('#suffixChips .chip.active')).map(b => b.dataset.v)
+    };
   })()`);
-  ok('卷名前置 + 括号同时生效', s4.length === 3, s4);
+  ok('回到可视化构建', s4.mode === 'simple', s4.mode);
+  ok('摘要说明默认', /默认/.test(s4.summary), s4.summary);
+  ok('后缀恢复全集', s4.suffixes.length >= 6, s4.suffixes);
 
-  console.log('\n【5】全部取消勾选时给出空正则');
+  console.log('\n【5】改回单选英文 → 回到可视化构建器');
   const s5 = await evaluate(`(async () => {
-    document.querySelectorAll('#comboWrap input[data-combo]').forEach(b => { b.checked = false; });
-    document.querySelectorAll('#comboWrap input[data-combo]')[0].dispatchEvent(new Event('change', {bubbles: true}));
-    await new Promise(r => setTimeout(r, 250));
-    return { regex: document.getElementById('fullRegex').value };
+    document.querySelectorAll('#presetMenu input').forEach(b => { b.checked = (b.value === 'en'); });
+    document.querySelector('#presetMenu input[value="en"]').dispatchEvent(new Event('change', {bubbles: true}));
+    await new Promise(r => setTimeout(r, 300));
+    return {
+      mode: (document.querySelector('#splitMode button.active') || {}).dataset.val,
+      effective: document.getElementById('effectiveReg').textContent,
+      summary: document.getElementById('presetSummary').textContent
+    };
   })()`);
-  ok('正则为空', s5.regex === '', s5.regex);
+  ok('切回简单模式', s5.mode === 'simple', s5.mode);
+  ok('生效正则含 Chapter', /chapter/i.test(s5.effective), s5.effective.slice(0, 70));
 
-  console.log('\n【6】切回其他预设应隐藏勾选组');
+  console.log('\n【6】点面板外部收起');
   const s6 = await evaluate(`(async () => {
-    const sel = document.getElementById('rulePreset');
-    sel.value = 'cn';
-    sel.dispatchEvent(new Event('change'));
+    document.getElementById('presetMenu').hidden = true;   // 先确保收起
+    await new Promise(r => setTimeout(r, 80));
+    document.getElementById('presetTrigger').click();
+    await new Promise(r => setTimeout(r, 150));
+    const opened = !document.getElementById('presetMenu').hidden;
+    document.querySelector('.tab-pane[data-pane="split"]').click();
     await new Promise(r => setTimeout(r, 200));
-    return { hidden: document.getElementById('comboWrap').hidden };
+    return { opened, closed: document.getElementById('presetMenu').hidden };
   })()`);
-  ok('勾选组已隐藏', s6.hidden === true);
+  ok('点击外部后收起', s6.opened === true && s6.closed === true, s6);
 
   console.log('\n=== 汇总 ===');
   const pass = results.filter(r => r.pass).length;

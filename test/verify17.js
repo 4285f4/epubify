@@ -64,9 +64,11 @@ function ok(name, cond, detail) {
   // 选预设并解析一段构造文本，返回识别到的标题
   async function runPreset(preset, text) {
     return evaluate(`(async () => {
-      const sel = document.getElementById('rulePreset');
-      sel.value = '${preset}';
-      sel.dispatchEvent(new Event('change'));
+      document.querySelectorAll('#presetMenu input').forEach(b => {
+        b.checked = (b.value === '${preset}');
+      });
+      document.querySelector('#presetMenu input[value="${preset}"]')
+        .dispatchEvent(new Event('change', {bubbles: true}));
       await new Promise(r => setTimeout(r, 200));
       const re = document.getElementById('fullRegex').value;
       const list = EasyText.parseChapters(${JSON.stringify(text)}, { mode: 'regex', fullRegex: re });
@@ -107,7 +109,7 @@ function ok(name, cond, detail) {
   ok('默认预设不认括号序号（隔离）', r5.length === 0, r5);
 
   console.log('\n【5】预设下拉含新选项');
-  const opts = await evaluate(`Array.from(document.querySelectorAll('#rulePreset option')).map(o => o.value)`);
+  const opts = await evaluate(`Array.from(document.querySelectorAll('#presetMenu input')).map(o => o.value)`);
   ok('选项已加入', opts.indexOf('paren') >= 0 && opts.indexOf('prefix') >= 0, opts);
 
   console.log('\n【6】额外关键词：默认值不被空输入框覆盖');

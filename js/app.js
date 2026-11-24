@@ -1724,15 +1724,10 @@
       scheduleRulePreview();
     });
 
-    $('rulePreset').addEventListener('change', function () { applyPreset(this.value); });
+    bindPresetPicker();
 
     $('fullRegex').addEventListener('input', scheduleRulePreview);
     $('extraKeywords').addEventListener('input', scheduleRulePreview);
-    $('comboWrap').addEventListener('change', function () {
-      if ($('rulePreset').value !== 'combo') return;
-      $('fullRegex').value = buildComboRegex();
-      scheduleRulePreview();
-    });
     $('filterProse').addEventListener('change', scheduleRulePreview);
     $('levelBySuffix').addEventListener('change', scheduleRulePreview);
     $('emptyMode').addEventListener('change', scheduleRulePreview);
@@ -1743,77 +1738,122 @@
     $('rulePreview').textContent = '导入文件后可预览识别结果';
   }
 
-  /** 组合模式下每种格式的匹配片段（不含 ^ 前缀与 .* 后缀） */
-  var COMBO_PARTS = {
-    cn: '第[0-9０-９一二三四五六七八九十百千零〇两]+[章回]',
-    vol: '第[0-9０-９一二三四五六七八九十百千零〇两三]+[卷部篇]',
-    paren: '[（(][0-9０-９一二三四五六七八九十百千零〇两三]+[)）]',
-    prefix: '[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两三]+[章回节]',
-    num: '[0-9]+[\\.、]\\s*\\S'
+  /**
+   * 预设方案：每项对应一组匹配片段，多选时用 | 拼成一条正则。
+   * 分章是行级判断，同一行被多个分支命中结果一致，所以并列不会打架。
+   */
+  var PRESET_DEFS = {
+    cn: { label: '中文网文', parts: ['第[0-9０-９一二三四五六七八九十百千零〇两]+[章回]'] },
+    vol: {
+      label: '卷章两级',
+      parts: ['第[0-9０-９一二三四五六七八九十百千零〇两三]+[卷部篇]',
+              '第[0-9０-９一二三四五六七八九十百千零〇两]+[章回]']
+    },
+    en: { label: '英文', parts: ['(?:Chapter|CHAPTER)\\s+[0-9IVXLC]+'] },
+    num: { label: '纯数字行', parts: ['[0-9]+[\\.、]\\s*\\S'] },
+    paren: { label: '括号序号', parts: ['[（(][0-9０-９一二三四五六七八九十百千零〇两三]+[)）]'] },
+    prefix: { label: '卷名前置', parts: ['[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两三]+[章回节]'] }
   };
 
-  /** 按勾选的格式拼出一条正则；命中哪个分支结果都一样（整行即标题） */
-  function buildComboRegex() {
-    var parts = [];
-    Array.prototype.forEach.call(
-      document.querySelectorAll('#comboWrap input[data-combo]'),
-      function (b) {
-        if (b.checked && COMBO_PARTS[b.dataset.combo]) parts.push(COMBO_PARTS[b.dataset.combo]);
-      }
+  function setChips(id, values) {
+    Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' .chip'), function (b) {
+      b.classList.toggle('active', values.indexOf(b.dataset.v) >= 0);
+    });
+  }
+
+  function setSplitMode(m) {
+    Array.prototype.forEach.call($('splitMode').querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b.dataset.val === m);
+    });
+    $('builderWrap').style.display = m === 'regex' ? 'none' : '';
+    $('fullRegWrap').style.display = m === 'regex' ? '' : 'none';
+  }
+
+  function selectedPresets() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#presetMenu input:checked'),
+      function (b) { return b.value; }
     );
+  }
+
+  /** 多选拼正则；单选 cn/vol/en 仍走可视化构建器，保留 chips 微调能力 */
+  function buildPresetRegex(keys) {
+    var parts = [];
+    keys.forEach(function (k) {
+      var d = PRESET_DEFS[k];
+      if (d) parts = parts.concat(d.parts);
+    });
     if (!parts.length) return '';
     return '^[ \\t\\u3000]*(?:' + parts.join('|') + ').*$';
   }
 
-  function applyPreset(name) {
-    function setChips(id, values) {
-      Array.prototype.forEach.call(document.querySelectorAll('#' + id + ' .chip'), function (b) {
-        b.classList.toggle('active', values.indexOf(b.dataset.v) >= 0);
-      });
-    }
-    function setMode(m) {
-      Array.prototype.forEach.call($('splitMode').querySelectorAll('button'), function (b) {
-        b.classList.toggle('active', b.dataset.val === m);
-      });
-      $('builderWrap').style.display = m === 'regex' ? 'none' : '';
-      $('fullRegWrap').style.display = m === 'regex' ? '' : 'none';
-    }
+  function updatePresetSummary(keys) {
+    var el = $('presetSummary');
+    if (!keys.length) { el.textContent = '默认（章/回/节/集/卷/部/篇）'; return; }
+    el.textContent = keys.map(function (k) {
+      return (PRESET_DEFS[k] && PRESET_DEFS[k].label) || k;
+    }).join(' + ');
+  }
 
-    $('comboWrap').hidden = name !== 'combo';
+  function applyPresets() {
+    var keys = selectedPresets();
+    updatePresetSummary(keys);
 
-    if (name === 'cn') {
+    // 一个都不勾 = 内置默认规则（全部后缀），与导入时的行为一致
+    if (!keys.length) {
       setChips('prefixChips', ['第']);
-      setChips('suffixChips', ['章', '回']);
+      setChips('suffixChips', ['章', '回', '节', '集', '卷', '部', '篇']);
       setChips('numChips', ['any']);
-      setMode('simple');
-    } else if (name === 'vol') {
-      setChips('prefixChips', ['第', '卷']);
-      setChips('suffixChips', ['章', '回', '卷', '部', '篇']);
-      setChips('numChips', ['any']);
-      setMode('simple');
-    } else if (name === 'en') {
-      setChips('prefixChips', ['Chapter']);
-      setChips('suffixChips', ['章']);
-      setChips('numChips', ['arabic']);
-      setMode('simple');
-    } else if (name === 'num') {
-      setMode('regex');
-      $('fullRegex').value = '^[ \\t\\u3000]*[0-9]+[\\.、]\\s*\\S.*$';
-    } else if (name === 'paren') {
-      // 括号序号：（一）/（0）/(0)，允许括号后带标题
-      setMode('regex');
-      $('fullRegex').value = '^[ \\t\\u3000]*[（(][0-9０-９一二三四五六七八九十百千零〇两]+[)）].*$';
-    } else if (name === 'prefix') {
-      // 卷名前置：卷名 + 第X章。前缀限定 18 字且不含句读，避免把正文句子当标题
-      setMode('regex');
-      $('fullRegex').value = '^[ \\t\\u3000]*[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两]+[章回节].*$';
-    } else if (name === 'combo') {
-      setMode('regex');
-      $('fullRegex').value = buildComboRegex();
+      setSplitMode('simple');
+      scheduleRulePreview();
+      return;
+    }
+
+    var simpleOnly = keys.length === 1 &&
+      (keys[0] === 'cn' || keys[0] === 'vol' || keys[0] === 'en');
+
+    if (simpleOnly) {
+      if (keys[0] === 'cn') {
+        setChips('prefixChips', ['第']);
+        setChips('suffixChips', ['章', '回']);
+        setChips('numChips', ['any']);
+      } else if (keys[0] === 'vol') {
+        setChips('prefixChips', ['第', '卷']);
+        setChips('suffixChips', ['章', '回', '卷', '部', '篇']);
+        setChips('numChips', ['any']);
+      } else {
+        setChips('prefixChips', ['Chapter']);
+        setChips('suffixChips', ['章']);
+        setChips('numChips', ['arabic']);
+      }
+      setSplitMode('simple');
     } else {
-      setMode('regex');
+      setSplitMode('regex');
+      $('fullRegex').value = buildPresetRegex(keys);
     }
     scheduleRulePreview();
+  }
+
+  function bindPresetPicker() {
+    var trigger = $('presetTrigger');
+    var menu = $('presetMenu');
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      trigger.setAttribute('aria-expanded', String(!menu.hidden));
+    });
+    // 点面板外收起
+    document.addEventListener('click', function (e) {
+      if (menu.hidden) return;
+      if ($('presetPicker').contains(e.target)) return;
+      menu.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    });
+    menu.addEventListener('change', applyPresets);
+    // 初始化只更新摘要，不套用预设——默认 chips 是全集（章/回/节/集/卷/部/篇），
+    // 套用 cn 预设会收窄成「章/回」，把卷、部级标题漏掉
+    updatePresetSummary(selectedPresets());
   }
 
   function bindLayout() {

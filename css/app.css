@@ -301,13 +301,25 @@ input[type="range"]::-webkit-slider-thumb {
 .segmented button.active { background: var(--accent); color: #fff; }
 .segmented-sm button { height: 26px; padding: 0 10px; font-size: 12px; }
 
-.combo-list {
-  display: flex; flex-wrap: wrap; gap: 6px 16px;
-  margin: 2px 0 12px; padding: 10px 12px;
-  background: #f7f9fc; border: 1px solid var(--border);
-  border-radius: 4px;
+.preset-picker { position: relative; }
+.preset-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left; cursor: pointer; gap: 8px;
 }
-.combo-list .check { font-size: 12.5px; }
+.preset-trigger:hover { border-color: var(--accent); }
+.preset-trigger span:first-child {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.preset-caret { color: var(--text-faint); font-size: 11px; flex: none; }
+.preset-menu {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 10px 12px;
+  background: #fff; border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(20, 40, 80, .14);
+}
+.preset-menu .check { font-size: 12.5px; }
 
 .field-hint {
   margin: -4px 0 12px;
