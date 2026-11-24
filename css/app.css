@@ -428,7 +428,9 @@ input[type="range"]::-webkit-slider-thumb {
   letter-spacing: .2px;
 }
 
-.chapter-row { cursor: grab; user-select: none; -webkit-user-select: none; }
+/* grab 在浅色背景上是白色开手，几乎看不见；用 pointer 更清楚，
+   按下时才切 grabbing 提示可拖动 */
+.chapter-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .chapter-row:active { cursor: grabbing; }
 /* 双击改名时的输入框要能正常选字 */
 .chapter-row input { user-select: text; -webkit-user-select: text; }

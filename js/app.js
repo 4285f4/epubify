@@ -317,6 +317,25 @@
     return out;
   }
 
+  /**
+   * 识别不到章节时的兜底：逐个试特殊格式预设，命中就切过去。
+   * 常见于「上次选了某个预设，这次导入的书是另一种排版」。
+   * 要求至少 2 章，避免把正文里零星的括号行当成章节。
+   */
+  function tryAutoPreset() {
+    var order = ['paren', 'num', 'prefix'];
+    for (var i = 0; i < order.length; i++) {
+      var re = buildPresetRegex([order[i]]);
+      if (!re) continue;
+      var probe = Object.assign({}, EasyText.DEFAULT_RULES, { mode: 'regex', fullRegex: re });
+      var list = EasyText.parseChapters(state.text, probe);
+      if (list.filter(function (c) { return !c.fixedTitle; }).length >= 2) {
+        return { key: order[i], regex: re, list: list };
+      }
+    }
+    return null;
+  }
+
   function resplit(isNewBook) {
     if (!state.text) return;
     var wasDirty = state.textDirty;
@@ -325,6 +344,24 @@
     return nextTick().then(function () {
       syncRules();
       var list = EasyText.parseChapters(state.text, state.rules);
+      var autoPicked = '';
+
+      if (!list.length) {
+        var hit = tryAutoPreset();
+        if (hit) {
+          Array.prototype.forEach.call(document.querySelectorAll('#presetMenu input'), function (b) {
+            b.checked = (b.value === hit.key);
+          });
+          setSplitMode('regex');
+          $('fullRegex').value = hit.regex;
+          updatePresetSummary([hit.key]);
+          state.rules.mode = 'regex';
+          state.rules.fullRegex = hit.regex;
+          list = hit.list;
+          autoPicked = PRESET_DEFS[hit.key].label;
+        }
+      }
+
       var texts = list.map(function (c) {
         return {
           id: newChapterId(),
@@ -335,8 +372,14 @@
       });
       applyChapters(texts, { keepDirty: !isNewBook && wasDirty });
       setProgress(0.7);
-      setStatus('分章完成，共 ' + state.chapters.length + ' 章' +
-        (isNewBook && wasDirty ? ' · 上一本书的未导出修改已丢弃' : ''));
+      var msg = '分章完成，共 ' + state.chapters.length + ' 章';
+      if (autoPicked) {
+        msg = '原规则未匹配，已自动改用「' + autoPicked + '」，共 ' + state.chapters.length + ' 章';
+      } else if (!list.length) {
+        msg = '未识别到章节——当前规则可能不适合这本书，请换一个预设';
+      }
+      if (isNewBook && wasDirty) msg += ' · 上一本书的未导出修改已丢弃';
+      setStatus(msg);
       setProgress(null);
     });
   }
