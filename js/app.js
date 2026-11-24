@@ -28,7 +28,7 @@
     customCss: '',
     cssMode: 'append',
     nameWithAuthor: true,
-    meta: { title: '', author: '', language: 'zh-CN', subject: '', description: '', publisher: '', tocPage: false, insertIntro: false },
+    meta: { title: '', author: '', language: 'zh-CN', subject: '', description: '', publisher: '', tocPage: false },
     cover: { mode: 'none', bg: '#1b2a41', fg: '#f2f2f2', uploaded: null, mime: 'image/jpeg' },
     previewIdx: 0,
     collapsed: {},             // 章节 id -> true，折叠状态（隐藏其下级）
@@ -227,9 +227,19 @@
     // 封面页、目录页也是章节；保留它们的存在状态
     var wantCover = hasFrontChapter('cover');
     var wantToc = hasFrontChapter('toc');
+    var wantIntro = hasFrontChapter('intro');
     var fronts = [];
     if (wantCover) fronts.push(makeFrontChapter('cover'));
     if (wantToc) fronts.push(makeFrontChapter('toc'));
+    if (wantIntro) fronts.push(makeFrontChapter('intro'));
+
+    // 前置页层级随正文：有卷时与卷并列，无卷时与章并列
+    var hasVol = false;
+    for (var ti = 0; ti < texts.length; ti++) {
+      if (texts[ti].type === 'text' && texts[ti].level === 1) { hasVol = true; break; }
+    }
+    fronts.forEach(function (f) { f.level = hasVol ? 1 : 2; });
+
     state.chapters = fronts.concat(texts);
 
     clearSelection();
@@ -450,12 +460,22 @@
     return 'ch' + (++state.chapterSeq);
   }
 
+  /** 前置页（封面/目录/简介）应有的层级：
+   *  书里有卷 → 1 级（与卷并列）；无卷 → 2 级（与章并列）。
+   *  否则正文会全部挂到前置页底下。 */
+  function frontLevel() {
+    var hasVol = state.chapters.some(function (c) {
+      return c.type === 'text' && c.level === 1 && c.deleted !== 'drop';
+    });
+    return hasVol ? 1 : 2;
+  }
+
   function makeFrontChapter(type) {
     return {
       id: newChapterId(),
       type: type,
-      title: type === 'cover' ? '封面' : '目录',
-      level: 1,
+      title: type === 'cover' ? '封面' : (type === 'toc' ? '目录' : '简介'),
+      level: frontLevel(),
       start: -1,
       end: -1,
       chars: 0,
@@ -469,13 +489,17 @@
     var ch = makeFrontChapter(type);
     if (type === 'cover') {
       state.chapters.unshift(ch);
-    } else {
-      var ci = -1;
-      for (var i = 0; i < state.chapters.length; i++) {
-        if (state.chapters[i].type === 'cover') { ci = i; break; }
-      }
-      state.chapters.splice(ci >= 0 ? ci + 1 : 0, 0, ch);
+      return ch;
     }
+    // 顺序：封面 → 目录 → 简介。前一级不存在时往前靠
+    var anchors = type === 'intro' ? ['toc', 'cover'] : ['cover'];
+    var ci = -1;
+    for (var a = 0; a < anchors.length && ci < 0; a++) {
+      for (var i = 0; i < state.chapters.length; i++) {
+        if (state.chapters[i].type === anchors[a]) { ci = i; break; }
+      }
+    }
+    state.chapters.splice(ci >= 0 ? ci + 1 : 0, 0, ch);
     return ch;
   }
 
@@ -491,18 +515,30 @@
     if (t) t.checked = hasFrontChapter('toc');
   }
 
-  /** 「插入简介页」开关：只有填写了简介才能勾选，清空简介时自动取消 */
+  /**
+   * 「插入简介页」开关。简介页和封面页、目录页一样是真实章节，
+   * 存在性以章节树为准；简介为空时禁用，并自动移除已插入的简介页。
+   */
   function syncIntroCheckbox() {
     var cb = $('mInsertIntro');
     var wrap = $('introWrap');
     if (!cb) return;
     var has = !!(state.meta.description || '').trim();
     cb.disabled = !has;
+
     if (!has) {
+      var exist = null;
+      for (var i = 0; i < state.chapters.length; i++) {
+        if (state.chapters[i].type === 'intro') { exist = state.chapters[i]; break; }
+      }
+      if (exist && exist.deleted !== 'drop') {
+        exist.deleted = 'drop';
+        renderList();
+        renderFileCard();
+      }
       cb.checked = false;
-      state.meta.insertIntro = false;
     } else {
-      cb.checked = !!state.meta.insertIntro;
+      cb.checked = hasFrontChapter('intro');
     }
     if (wrap) wrap.title = has ? '' : '先在「简介」里填写内容才能插入简介页';
   }
@@ -689,7 +725,7 @@
     var ch2 = document.createElement('span');
     ch2.className = 'chars' + (isFront ? ' front-badge' : '');
     if (isFront) {
-      ch2.textContent = ch.type === 'cover' ? '封面页' : '目录页';
+      ch2.textContent = ch.type === 'cover' ? '封面页' : (ch.type === 'toc' ? '目录页' : '简介页');
     } else {
       ch2.textContent = fmtChars(ch.chars) + ' 字';
       ch2.title = '共 ' + ch.chars.toLocaleString('zh-CN') + ' 字';
@@ -1391,7 +1427,19 @@
     var css = finalCSS();
     var lv = Math.min(Math.max(c.level, 1), 3);
     var cls = lv === 1 ? 'titlel1std' : (lv === 2 ? 'titlel2std' : 'titlel3std');
-    var body = '<h2 class="' + cls + '">' + EasyEpub.escape(c.title) + '</h2>' + chapterBody(c);
+    var content;
+    if (c.type === 'intro') {
+      content = EasyText.toXHTML(state.meta.description || '', {
+        indent: state.cssOpt.indentEm > 0,
+        dropLeadSpace: $('dropLeadSpace').checked
+      });
+    } else if (c.type === 'text') {
+      content = chapterBody(c);
+    } else {
+      content = '<p style="color:#9aa4b2;text-align:center;margin-top:3em">' +
+        (c.type === 'cover' ? '封面' : '目录') + '页由程序生成，此处只显示标题</p>';
+    }
+    var body = '<h2 class="' + cls + '">' + EasyEpub.escape(c.title) + '</h2>' + content;
 
     frame.srcdoc = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
       '<style>' + css + ' body{padding: 18px 4px;}</style></head><body>' + body + '</body></html>';
@@ -1401,15 +1449,19 @@
   function collectChapters() {
     var out = [];
     var pendingStart = null;
-    // 简介页内容来自元数据（不在 state.text 内），单独标记，插在第一段正文之前
-    var introPending = !!state.meta.insertIntro && !!(state.meta.description || '').trim();
 
     for (var i = 0; i < state.chapters.length; i++) {
       var c = state.chapters[i];
 
-      // 封面页 / 目录页：不作为正文区间，但同样参与 spine 与 nav 排序
+      // 封面页 / 目录页 / 简介页：不作为正文区间，但同样参与 spine 与 nav 排序。
+      // 简介页的正文来自元数据，单独带上
       if (c.type !== 'text') {
-        if (!c.deleted) out.push({ type: c.type, title: c.title, level: c.level });
+        if (!c.deleted) {
+          out.push({
+            type: c.type, title: c.title, level: c.level,
+            text: c.type === 'intro' ? (state.meta.description || '').trim() : ''
+          });
+        }
         continue;
       }
 
@@ -1422,11 +1474,6 @@
         if (prev) prev.end = c.end;
         else pendingStart = c.start;
         continue;
-      }
-
-      if (introPending) {
-        out.push({ type: 'intro', title: '简介', level: 1, text: (state.meta.description || '').trim() });
-        introPending = false;
       }
 
       out.push({
@@ -1609,7 +1656,7 @@
       setFrontChapter('toc', this.checked);
     });
     $('mInsertIntro').addEventListener('change', function () {
-      state.meta.insertIntro = this.checked;
+      setFrontChapter('intro', this.checked);
     });
     // 简介内容变化时同步开关可用状态
     $('mDesc').addEventListener('input', syncIntroCheckbox);
