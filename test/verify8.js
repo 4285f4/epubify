@@ -81,7 +81,7 @@ function ok(name, cond, detail) {
     hasCover: __epubify.hasFrontChapter('cover'),
     hasToc: __epubify.hasFrontChapter('toc')
   })`);
-  ok('首章为「内容简介」', s1.first === '内容简介' && s1.firstType === 'text', s1);
+  ok('首章为「卷首」', s1.first === '卷首' && s1.firstType === 'text', s1);
   ok('默认无封面页/目录页', s1.hasCover === false && s1.hasToc === false);
   ok('总章数 21', s1.total === 21, s1.total);
 
@@ -102,7 +102,7 @@ function ok(name, cond, detail) {
   })()`);
   ok('封面页成为第 1 个章节', s2.first === '封面' && s2.firstType === 'cover', s2);
   ok('自动启用书名单色封面', s2.coverMode === 'gen', s2.coverMode);
-  ok('内容简介顺延到第 2', s2.second === '内容简介', s2.second);
+  ok('卷首顺延到第 2', s2.second === '卷首', s2.second);
 
   console.log('\n【3】勾选目录页');
   const s3 = await evaluate(`(async () => {
@@ -117,7 +117,7 @@ function ok(name, cond, detail) {
       titles: ch.slice(0, 4).map(c => c.title)
     };
   })()`);
-  ok('顺序为 封面→目录→内容简介', s3.types.slice(0, 3).join(',') === 'cover,toc,text', s3);
+  ok('顺序为 封面→目录→卷首', s3.types.slice(0, 3).join(',') === 'cover,toc,text', s3);
 
   console.log('\n【4】拖动调整顺序（目录到最前）');
   const s4 = await evaluate(`(async () => {

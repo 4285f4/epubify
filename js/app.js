@@ -28,7 +28,7 @@
     customCss: '',
     cssMode: 'append',
     nameWithAuthor: true,
-    meta: { title: '', author: '', language: 'zh-CN', subject: '', description: '', publisher: '', tocPage: false },
+    meta: { title: '', author: '', language: 'zh-CN', subject: '', description: '', publisher: '', tocPage: false, insertIntro: false },
     cover: { mode: 'none', bg: '#1b2a41', fg: '#f2f2f2', uploaded: null, mime: 'image/jpeg' },
     previewIdx: 0,
     collapsed: {},             // 章节 id -> true，折叠状态（隐藏其下级）
@@ -199,6 +199,11 @@
 
     var m = head.match(/《([^》\n]{1,40})》/);
     if (m) out.title = m[1].trim();
+    // 也支持「书名：xxx」这种前缀写法（常见于自制 txt 的开头）
+    if (!out.title) {
+      m = head.match(/书\s*名\s*[：:]\s*([^\n\r]{1,40})/);
+      if (m) out.title = m[1].trim();
+    }
 
     m = head.match(/作\s*者\s*[：:]\s*([^\n\r《》]{1,30})/);
     if (m) out.author = m[1].trim();
@@ -284,10 +289,10 @@
       } else if (cur) {
         cur.end = end;                 // 正文归入当前章节
       } else {
-        // 第一个标题之前的正文，单独成「内容简介」
+        // 第一个标题之前的正文，单独成「卷首」
         cur = {
           id: newChapterId(), type: 'text',
-          title: '内容简介', level: 1,
+          title: '卷首', level: 1,
           start: start, end: end,
           chars: 0, deleted: null, fixedTitle: true
         };
@@ -484,6 +489,22 @@
     var t = $('mTocPage');
     if (c) c.checked = hasFrontChapter('cover');
     if (t) t.checked = hasFrontChapter('toc');
+  }
+
+  /** 「插入简介页」开关：只有填写了简介才能勾选，清空简介时自动取消 */
+  function syncIntroCheckbox() {
+    var cb = $('mInsertIntro');
+    var wrap = $('introWrap');
+    if (!cb) return;
+    var has = !!(state.meta.description || '').trim();
+    cb.disabled = !has;
+    if (!has) {
+      cb.checked = false;
+      state.meta.insertIntro = false;
+    } else {
+      cb.checked = !!state.meta.insertIntro;
+    }
+    if (wrap) wrap.title = has ? '' : '先在「简介」里填写内容才能插入简介页';
   }
 
   /** 开关前置页：存在则标记删除，不存在则插入 */
@@ -1318,8 +1339,13 @@
 
   function chapterBody(c) {
     var raw = state.text.slice(c.start, effectiveEnd(c));
-    var nl = raw.indexOf('\n');
-    var bodyText = nl >= 0 ? raw.slice(nl + 1) : raw;
+    var bodyText = raw;
+    // 普通章节的第一行就是标题（标题由 h2 单独输出），正文从这里之后开始；
+    // 「卷首」这类标题是固定的、并非取自正文，首行必须保留，否则会丢内容
+    if (!c.fixedTitle) {
+      var nl = raw.indexOf('\n');
+      bodyText = nl >= 0 ? raw.slice(nl + 1) : raw;
+    }
     return EasyText.toXHTML(bodyText, {
       indent: state.cssOpt.indentEm > 0,
       dropLeadSpace: $('dropLeadSpace').checked
@@ -1353,6 +1379,9 @@
   function collectChapters() {
     var out = [];
     var pendingStart = null;
+    // 简介页内容来自元数据（不在 state.text 内），单独标记，插在第一段正文之前
+    var introPending = !!state.meta.insertIntro && !!(state.meta.description || '').trim();
+
     for (var i = 0; i < state.chapters.length; i++) {
       var c = state.chapters[i];
 
@@ -1372,6 +1401,12 @@
         else pendingStart = c.start;
         continue;
       }
+
+      if (introPending) {
+        out.push({ type: 'intro', title: '简介', level: 1, text: (state.meta.description || '').trim() });
+        introPending = false;
+      }
+
       out.push({
         type: 'text',
         title: c.title,
@@ -1391,6 +1426,17 @@
       var stop = Math.min(i + BATCH, list.length);
       for (; i < stop; i++) {
         var c = list[i];
+        // 简介页：正文来自元数据而非 state.text，这里直接转成 XHTML
+        if (c.type === 'intro') {
+          res.push({
+            type: 'text', title: c.title, level: c.level,
+            html: EasyText.toXHTML(c.text, {
+              indent: state.cssOpt.indentEm > 0,
+              dropLeadSpace: $('dropLeadSpace').checked
+            })
+          });
+          continue;
+        }
         if (c.type !== 'text') {
           res.push({ type: c.type, title: c.title, level: c.level });
           continue;
@@ -1513,6 +1559,7 @@
     $('mDesc').value = state.meta.description;
     $('mPublisher').value = state.meta.publisher;
     syncFrontCheckboxes();
+    syncIntroCheckbox();
     $('nameWithAuthor').checked = state.nameWithAuthor;
   }
 
@@ -1539,6 +1586,11 @@
     $('mTocPage').addEventListener('change', function () {
       setFrontChapter('toc', this.checked);
     });
+    $('mInsertIntro').addEventListener('change', function () {
+      state.meta.insertIntro = this.checked;
+    });
+    // 简介内容变化时同步开关可用状态
+    $('mDesc').addEventListener('input', syncIntroCheckbox);
     $('nameWithAuthor').addEventListener('change', function () {
       state.nameWithAuthor = this.checked; updateNamePreview();
     });
@@ -2086,6 +2138,8 @@
     hasFrontChapter: hasFrontChapter,
     setFrontChapter: setFrontChapter,
     moveChapter: moveChapter,
-    rebuildText: rebuildText
+    rebuildText: rebuildText,
+    refreshPreview: refreshPreview,
+    switchTab: switchTab
   };
 })();

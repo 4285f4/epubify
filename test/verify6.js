@@ -99,7 +99,7 @@ function ok(name, cond, detail) {
     chars: __epubify.state.chapters[0].chars,
     total: __epubify.state.chapters.length
   })`);
-  ok('首章标题为「内容简介」', first.title === '内容简介', first);
+  ok('首章标题为「卷首」', first.title === '卷首', first);
   ok('首章标记为固定标题', first.fixed === true);
   ok('后续章节正常', first.total === 21, first.total);
 
@@ -169,7 +169,7 @@ function ok(name, cond, detail) {
   const byBtnTitle = await evaluate(`__epubify.state.chapters[5].title`);
   ok('按钮触发改名', byBtn.hasInput === true && byBtnTitle === '按钮改的名', byBtnTitle);
 
-  console.log('\n【5】编辑「内容简介」的正文不覆盖标题');
+  console.log('\n【5】编辑「卷首」的正文不覆盖标题');
   const seqTest = await evaluate(`(async () => {
     __epubify.toggleEdit();
     __epubify.loadChapterToEditor(0);
@@ -183,7 +183,7 @@ function ok(name, cond, detail) {
     __epubify.toggleEdit();
     return { before, after, content: __epubify.state.text.slice(0, 20) };
   })()`);
-  ok('「内容简介」标题未被正文覆盖', seqTest.after === '内容简介', seqTest);
+  ok('「卷首」标题未被正文覆盖', seqTest.after === '卷首', seqTest);
 
   console.log('\n【6】普通章节在编辑器改首行仍会同步标题');
   const normalTest = await evaluate(`(async () => {

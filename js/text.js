@@ -145,9 +145,10 @@
       var head = text.slice(0, marks[0].start);
       if (head.trim()) {
         // 第一个真章节之前的内容（书名/作者/简介）单独成篇。
-        // 网文语境里这就是「内容简介」页，fixedTitle 让编辑器不再拿正文首行覆盖它
+        // 这段可能含书名、作者、版权、免责声明等各种信息，统称「卷首」。
+        // fixedTitle 让编辑器不再拿正文首行覆盖它
         chapters.push({
-          title: '内容简介',
+          title: '卷首',
           level: 1,
           start: 0,
           end: marks[0].start,
@@ -183,7 +184,7 @@
     }
 
     // 全书没有「卷」级标题时，统一按章节级排版。
-    // 否则「内容简介」会独自占一级，后面的章节看起来全比它低一级，
+    // 否则「卷首」会独自占一级，后面的章节看起来全比它低一级，
     // 而且一级标题带 35% 顶部留白，首屏会空出一大片。
     var hasVolume = false;
     for (var v = 0; v < chapters.length; v++) {

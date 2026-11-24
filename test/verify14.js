@@ -1,8 +1,8 @@
 /* v14 回归：TXT 分章的四个问题
  *  1. 删除章节后预览未刷新
  *  2. 正文里的「第一节晚自习下课后…」被误识别为章节
- *  3. 无卷结构时，内容简介比正文高一级
- *  4. 内容简介页面顶部 35% 大留白
+ *  3. 无卷结构时，卷首比正文高一级
+ *  4. 卷首页面顶部 35% 大留白
  */
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -98,7 +98,7 @@ function ok(name, cond, detail) {
   ok('章节数 504', s1.total === 504, s1.total);
   ok('无「第X节」被误判为章节', s1.secLike === 0, s1.secLike);
   ok('无超长标题行被当章节', s1.longTitles === 0, s1.longTitles);
-  ok('内容简介与正文同级', s1.firstTwo[0].lv === s1.firstTwo[1].lv, s1.firstTwo);
+  ok('卷首与正文同级', s1.firstTwo[0].lv === s1.firstTwo[1].lv, s1.firstTwo);
   ok('全书统一为章节级', s1.byLv[1] === undefined, s1.byLv);
 
   console.log('\n【2】删除章节后预览应刷新');
