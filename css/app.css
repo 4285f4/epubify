@@ -301,6 +301,14 @@ input[type="range"]::-webkit-slider-thumb {
 .segmented button.active { background: var(--accent); color: #fff; }
 .segmented-sm button { height: 26px; padding: 0 10px; font-size: 12px; }
 
+.combo-list {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+  margin: 2px 0 12px; padding: 10px 12px;
+  background: #f7f9fc; border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.combo-list .check { font-size: 12.5px; }
+
 .field-hint {
   margin: -4px 0 12px;
   font-size: 11.5px; color: var(--text-faint); line-height: 1.6;

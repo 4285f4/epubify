@@ -151,9 +151,18 @@
             <option value="num">纯数字行：1. 标题</option>
             <option value="paren">括号序号：（一）/ (0)</option>
             <option value="prefix">卷名前置：卷名 第X章</option>
+            <option value="combo">组合几种格式（混排书用）</option>
             <option value="custom">自定义正则</option>
           </select>
         </label>
+
+        <div class="combo-list" id="comboWrap" hidden>
+          <label class="check"><input type="checkbox" data-combo="cn" checked/> 第X章 / 第X回</label>
+          <label class="check"><input type="checkbox" data-combo="paren"/> 括号序号：（一）/ (0)</label>
+          <label class="check"><input type="checkbox" data-combo="prefix"/> 卷名前置：卷名 第X章</label>
+          <label class="check"><input type="checkbox" data-combo="vol"/> 卷 / 部：第X卷</label>
+          <label class="check"><input type="checkbox" data-combo="num"/> 纯数字行：1. 标题</label>
+        </div>
 
         <div class="field">
           <span>识别方式</span>

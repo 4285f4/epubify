@@ -1722,6 +1722,11 @@
 
     $('fullRegex').addEventListener('input', scheduleRulePreview);
     $('extraKeywords').addEventListener('input', scheduleRulePreview);
+    $('comboWrap').addEventListener('change', function () {
+      if ($('rulePreset').value !== 'combo') return;
+      $('fullRegex').value = buildComboRegex();
+      scheduleRulePreview();
+    });
     $('filterProse').addEventListener('change', scheduleRulePreview);
     $('levelBySuffix').addEventListener('change', scheduleRulePreview);
     $('emptyMode').addEventListener('change', scheduleRulePreview);
@@ -1730,6 +1735,28 @@
 
     $('effectiveReg').textContent = effectiveRegex();
     $('rulePreview').textContent = '导入文件后可预览识别结果';
+  }
+
+  /** 组合模式下每种格式的匹配片段（不含 ^ 前缀与 .* 后缀） */
+  var COMBO_PARTS = {
+    cn: '第[0-9０-９一二三四五六七八九十百千零〇两]+[章回]',
+    vol: '第[0-9０-９一二三四五六七八九十百千零〇两三]+[卷部篇]',
+    paren: '[（(][0-9０-９一二三四五六七八九十百千零〇两三]+[)）]',
+    prefix: '[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两三]+[章回节]',
+    num: '[0-9]+[\\.、]\\s*\\S'
+  };
+
+  /** 按勾选的格式拼出一条正则；命中哪个分支结果都一样（整行即标题） */
+  function buildComboRegex() {
+    var parts = [];
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#comboWrap input[data-combo]'),
+      function (b) {
+        if (b.checked && COMBO_PARTS[b.dataset.combo]) parts.push(COMBO_PARTS[b.dataset.combo]);
+      }
+    );
+    if (!parts.length) return '';
+    return '^[ \\t\\u3000]*(?:' + parts.join('|') + ').*$';
   }
 
   function applyPreset(name) {
@@ -1745,6 +1772,8 @@
       $('builderWrap').style.display = m === 'regex' ? 'none' : '';
       $('fullRegWrap').style.display = m === 'regex' ? '' : 'none';
     }
+
+    $('comboWrap').hidden = name !== 'combo';
 
     if (name === 'cn') {
       setChips('prefixChips', ['第']);
@@ -1772,6 +1801,9 @@
       // 卷名前置：卷名 + 第X章。前缀限定 18 字且不含句读，避免把正文句子当标题
       setMode('regex');
       $('fullRegex').value = '^[ \\t\\u3000]*[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两]+[章回节].*$';
+    } else if (name === 'combo') {
+      setMode('regex');
+      $('fullRegex').value = buildComboRegex();
     } else {
       setMode('regex');
     }
