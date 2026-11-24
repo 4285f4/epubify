@@ -80,12 +80,14 @@ function ok(name, cond, detail) {
     total: document.querySelectorAll('#presetMenu input').length,
     summary: document.getElementById('presetSummary').textContent,
     menuHidden: document.getElementById('presetMenu').hidden,
+    menuDisplay: getComputedStyle(document.getElementById('presetMenu')).display,
     mode: (document.querySelector('#splitMode button.active') || {}).dataset ? (document.querySelector('#splitMode button.active') || {}).dataset.val : ''
   })`);
   ok('共 6 个预设', s1.total === 6, s1.total);
   ok('默认不勾任何预设（用内置规则）', s1.checked.length === 0, s1.checked);
   ok('摘要说明是默认规则', /默认/.test(s1.summary), s1.summary);
-  ok('面板默认收起', s1.menuHidden === true);
+  ok('面板默认收起（实际不可见）', s1.menuHidden === true && s1.menuDisplay === 'none',
+    { hidden: s1.menuHidden, display: s1.menuDisplay });
   ok('单选时用可视化构建', s1.mode === 'simple', s1.mode);
 
   console.log('\n【2】点击展开');
@@ -94,10 +96,11 @@ function ok(name, cond, detail) {
     await new Promise(r => setTimeout(r, 200));
     return {
       hidden: document.getElementById('presetMenu').hidden,
+      display: getComputedStyle(document.getElementById('presetMenu')).display,
       expanded: document.getElementById('presetTrigger').getAttribute('aria-expanded')
     };
   })()`);
-  ok('面板展开', s2.hidden === false && s2.expanded === 'true', s2);
+  ok('面板展开（可见）', s2.hidden === false && s2.display !== 'none' && s2.expanded === 'true', s2);
 
   console.log('\n【3】加勾括号序号 → 自动切正则并合并');
   const s3 = await evaluate(`(async () => {
@@ -161,9 +164,11 @@ function ok(name, cond, detail) {
     const opened = !document.getElementById('presetMenu').hidden;
     document.querySelector('.tab-pane[data-pane="split"]').click();
     await new Promise(r => setTimeout(r, 200));
-    return { opened, closed: document.getElementById('presetMenu').hidden };
+    const m = document.getElementById('presetMenu');
+    return { opened, closed: m.hidden, closedDisplay: getComputedStyle(m).display };
   })()`);
-  ok('点击外部后收起', s6.opened === true && s6.closed === true, s6);
+  ok('点击外部后收起（实际不可见）',
+    s6.opened === true && s6.closed === true && s6.closedDisplay === 'none', s6);
 
   console.log('\n=== 汇总 ===');
   const pass = results.filter(r => r.pass).length;
