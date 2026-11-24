@@ -1072,6 +1072,7 @@
       case 'level-2': setLevel(idxs, 2); setStatus('已设为二级：' + idxs.length + ' 章'); break;
       case 'level-3': setLevel(idxs, 3); setStatus('已设为三级：' + idxs.length + ' 章'); break;
       case 'del': toggleDelete(idxs, false); break;
+      case 'drop': toggleDelete(idxs, true); break;
       case 'restore':
         idxs.forEach(function (i) { if (state.chapters[i]) state.chapters[i].deleted = null; });
         renderFileCard(); renderList(); fillPreviewSelect();
@@ -1269,10 +1270,31 @@
     loadChapterToEditor(next);
   }
 
+  /**
+   * 按当前删除标记拼出正文（不修改 state）。
+   * 用于导出 TXT：被「彻底删除」的章节内容不该出现在导出结果里。
+   */
+  function textWithDeletionsApplied() {
+    var buf = [];
+    state.chapters.forEach(function (c) {
+      if (c.type !== 'text') return;
+      if (c.deleted === 'drop') return;
+      var seg = state.text.slice(c.start, c.end);
+      if (c.deleted === 'merge') {
+        if (buf.length) buf[buf.length - 1] += seg;
+        else buf.push(seg);
+        return;
+      }
+      buf.push(seg);
+    });
+    return buf.join('');
+  }
+
   function downloadText() {
     var name = outputName().replace(/\.epub$/i, '.txt');
+    var out = textWithDeletionsApplied();
     // 还原原始换行风格，Windows 记事本打开更友好
-    var out = state.lineEnding === 'crlf' ? state.text.replace(/\n/g, '\r\n') : state.text;
+    if (state.lineEnding === 'crlf') out = out.replace(/\n/g, '\r\n');
     var blob = new Blob(['\uFEFF' + out], { type: 'text/plain;charset=utf-8' });
     download(blob, name);
     setStatus('已导出 TXT：' + name + ' · ' + fmtBytes(blob.size));
