@@ -1630,6 +1630,14 @@
     } else if (name === 'num') {
       setMode('regex');
       $('fullRegex').value = '^[ \\t\\u3000]*[0-9]+[\\.、]\\s*\\S.*$';
+    } else if (name === 'paren') {
+      // 括号序号：（一）/（0）/(0)，允许括号后带标题
+      setMode('regex');
+      $('fullRegex').value = '^[ \\t\\u3000]*[（(][0-9０-９一二三四五六七八九十百千零〇两]+[)）].*$';
+    } else if (name === 'prefix') {
+      // 卷名前置：卷名 + 第X章。前缀限定 18 字且不含句读，避免把正文句子当标题
+      setMode('regex');
+      $('fullRegex').value = '^[ \\t\\u3000]*[^，。；！？\\n]{1,18}第[0-9０-９一二三四五六七八九十百千零〇两]+[章回节].*$';
     } else {
       setMode('regex');
     }
